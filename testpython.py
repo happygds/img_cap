@@ -1,17 +1,11 @@
-import h5py
-import numpy as np
-import time
-import pickle
-import os
-from multiprocessing.dummy import Pool as ThreadPool
+from core.utils import *
+from core.bleu import evaluate
+import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
-pool = ThreadPool(8)
-
-tmp1 = time.time()
-features = h5py.File('./data/train/train_split0.features.h5', 'r')['features'][:]
-print(type(features), features.shape)
-tmp2 = time.time()
-print('time used {} s'.format(tmp2 - tmp1))
+scores = evaluate(data_path='./data', split='val', get_scores=True)
+write_bleu(scores=scores, path='model/att/', epoch=1)
 
 
 # with open('./data/train/train.file.names.pkl', 'rb') as f:

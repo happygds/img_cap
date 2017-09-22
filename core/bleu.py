@@ -2,18 +2,24 @@ import cPickle as pickle
 import os
 import sys
 sys.path.append('../coco-caption')
-from pycocoevalcap.bleu.bleu import Bleu
-from pycocoevalcap.rouge.rouge import Rouge
-from pycocoevalcap.ciderD.ciderD import CiderD
-from pycocoevalcap.cider.cider import Cider
+from caption_eval.coco_caption.pycxevalcap.bleu.bleu import Bleu
+from caption_eval.coco_caption.pycxevalcap.rouge.rouge import Rouge
+from caption_eval.coco_caption.pycxevalcap.meteor.meteor import Meteor
+from caption_eval.coco_caption.pycxevalcap.cider.cider import Cider
+from caption_eval.coco_caption.pycxevalcap.tokenizer.ptbtokenizer import PTBTokenizer
 import pdb
 
 
 def score_all(ref, hypo):
+    print('tokenization...')
+    tokenizer = PTBTokenizer()
+    ref = tokenizer.tokenize(ref)
+    hypo = tokenizer.tokenize(hypo)
+
     scorers = [
         (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
-        (CiderD(), "CIDEr-D"),
         (Rouge(), "ROUGE_L"),
+        (Meteor(), "METEOR"),
         (Cider(), "CIDEr")
     ]
     final_scores = {}
@@ -51,17 +57,21 @@ def evaluate_for_particular_captions(cand, data_path='./data', split='val', get_
     return final_scores
 
 
-def evaluate_captions_ciderD(ref, cand):
+def evaluate_captions_cider(ref, cand):
     hypo = {}
     refe = {}
-    # print type(cand), len(cand), type(ref), len(ref)
-    # pdb.set_trace()
 
     for i, caption in enumerate(cand):
-        hypo[i] = [caption]
-        refe[i] = ref[i]
+        hypo[i] = [{'caption': caption}]
+        refe[i] = [{'caption': cap} for cap in ref[i]]
+
+    print('tokenization...')
+    tokenizer = PTBTokenizer()
+    refe = tokenizer.tokenize(refe)
+    hypo = tokenizer.tokenize(hypo)
+
     scorers = [
-        (CiderD(), "CIDEr-D")
+        (Cider(), "CIDEr")
     ]
     for scorer, method in scorers:
         _, scores = scorer.compute_score(refe, hypo)
@@ -73,8 +83,14 @@ def evaluate_captions_bleu(ref, cand):
     hypo = {}
     refe = {}
     for i, caption in enumerate(cand):
-        hypo[i] = [caption]
-        refe[i] = ref[i]
+        hypo[i] = [{'caption': caption}]
+        refe[i] = [{'caption': cap} for cap in ref[i]]
+
+    print('tokenization...')
+    tokenizer = PTBTokenizer()
+    refe = tokenizer.tokenize(refe)
+    hypo = tokenizer.tokenize(hypo)
+
     scorers = [
         (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"])
     ]
@@ -87,16 +103,23 @@ def evaluate_captions_bleu(ref, cand):
     return final_scores['Bleu_4']
 
 
-def evaluate_captions_mixD(ref, cand):
+def evaluate_captions_mix(ref, cand):
     hypo = {}
     refe = {}
     for i, caption in enumerate(cand):
-        hypo[i] = [caption]
-        refe[i] = ref[i]
+        hypo[i] = [{'caption': caption}]
+        refe[i] = [{'caption': cap} for cap in ref[i]]
+
+    print('tokenization...')
+    tokenizer = PTBTokenizer()
+    refe = tokenizer.tokenize(refe)
+    hypo = tokenizer.tokenize(hypo)
+
     scorers = [
         (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
-        (CiderD(), "CIDEr-D"),
-        (Rouge(), "ROUGE_L")
+        (Cider(), "CIDEr"),
+        (Rouge(), "ROUGE_L"),
+        (Meteor(), "METEOR"),
     ]
     final_scores = {}
     for scorer, method in scorers:
@@ -108,7 +131,7 @@ def evaluate_captions_mixD(ref, cand):
         else:
             final_scores[method] = scores
             assert len(scores) == len(cand)
-    return final_scores['CIDEr-D'] + 2. * final_scores['ROUGE_L'] + final_scores['Bleu_4'] + 0.5 * final_scores['Bleu_3']
+    return final_scores['CIDEr'] + 2. * final_scores['ROUGE_L'] + 2. * final_scores['Bleu_4'] + 5. * final_scores['METEOR']
 
 
 def evaluate(data_path='./data', split='val', get_scores=False):
@@ -124,7 +147,8 @@ def evaluate(data_path='./data', split='val', get_scores=False):
     # make dictionary
     hypo = {}
     for i, caption in enumerate(cand):
-        hypo[i] = [caption]
+        # caption = ' '.join([unicode(x, 'utf-8') for x in caption.split(' ')[:-1]])
+        hypo[i] = [{'caption': caption}]
 
     # compute bleu score
     final_scores = score_all(ref, hypo)
@@ -134,7 +158,7 @@ def evaluate(data_path='./data', split='val', get_scores=False):
     print 'Bleu_2:\t', final_scores['Bleu_2']
     print 'Bleu_3:\t', final_scores['Bleu_3']
     print 'Bleu_4:\t', final_scores['Bleu_4']
-    print 'CIDEr-D:\t', final_scores['CIDEr-D']
+    print 'Meteor:\t', final_scores['METEOR']
     print 'ROUGE_L:', final_scores['ROUGE_L']
     print 'CIDEr:\t', final_scores['CIDEr']
 

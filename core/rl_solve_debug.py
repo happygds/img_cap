@@ -7,11 +7,12 @@ import numpy as np
 import time
 import os
 import pdb
+import json
 import cPickle as pickle
 import random
 from scipy import ndimage
 from utils import *
-from bleu import evaluate, evaluate_captions_ciderD, evaluate_for_particular_captions
+from bleu import evaluate, evaluate_captions_mix, evaluate_for_particular_captions
 from multiprocessing.dummy import Pool as ThreadPool
 import sys
 reload(sys)
@@ -118,7 +119,13 @@ class CaptioningSolver(object):
         # train op
         with tf.name_scope('optimizer'):
 
-            optimizer = self.optimizer(learning_rate=self.learning_rate)
+            global_step = tf.Variable(0, trainable=False)
+            learning_rate = tf.train.exponential_decay(self.learning_rate,
+                                                       global_step=global_step,
+                                                       decay_steps=n_iters_per_epoch * 3,
+                                                       decay_rate=0.9)
+
+            optimizer = self.optimizer(learning_rate=learning_rate)
             norm = tf.reduce_sum(t1_mul)
             r = rewards - base_line
             # r = tf.pow(tf.abs(r), iter_count) * tf.sign(r * iter_count + eps)
@@ -178,9 +185,11 @@ class CaptioningSolver(object):
                 f.write('\n')
                 f.write("Bleu_4:" + str(scores['Bleu_4']))
                 f.write('\n')
+                # f.write("Bleu_5:" + str(scores['Bleu_5']))
+                # f.write('\n')
                 f.write("ROUGE_L:" + str(scores['ROUGE_L']))
                 f.write('\n')
-                f.write("CIDEr-D:" + str(scores['CIDEr-D']))
+                f.write("Meteor:" + str(scores['METEOR']))
                 f.write('\n')
                 f.write("CIDEr:" + str(scores['CIDEr']))
                 f.write('\n')
@@ -264,30 +273,21 @@ class CaptioningSolver(object):
                     mask, all_decoded = decode_captions_for_blue(samples, self.model.idx_to_word)
                     _, greedy_decoded = decode_captions_for_blue(greedy_words, self.model.idx_to_word)
                     greedy_decoded_for_eval.extend(greedy_decoded)
-                    if i == 0:
-                        tmp2 = time.time()
-                        print('run on GPU: {} s'.format(tmp2 - tmp1))
 
-                    tmp1 = time.time()
                     # r = [evaluate_captions_bleu([k], [v]) for k, v in zip(ref_decoded, all_decoded)]
                     # b = [evaluate_captions_bleu([k], [v]) for k, v in zip(ref_decoded, greedy_decoded)]
-                    r = evaluate_captions_ciderD(ref_decoded, all_decoded)
-                    b = evaluate_captions_ciderD(ref_decoded, greedy_decoded)
-                    if i == 0:
-                        tmp2 = time.time()
-                        print('compute metric: {} s'.format(tmp2 - tmp1))
-                    iter_num = 1. - 1. / (e + 1.)
-                    iter_num = iter_num * np.ones(image_idxs_batch.shape[:1], dtype=np.float32)
+                    r = evaluate_captions_mix(ref_decoded, all_decoded)
+                    b = evaluate_captions_mix(ref_decoded, greedy_decoded)
 
                     # pdb.set_trace()
-                    tmp1 = time.time()
                     b_for_eval.extend(b)
 
                     feed_dict = {grad_mask: mask, self.model.sample_caption: samples, rewards: r, base_line: b,
-                                 self.model.features: features_batch, self.model.captions: captions_batch, iter_count: iter_num
+                                 self.model.features: features_batch, self.model.captions: captions_batch,
+                                 global_step: e * n_iters_per_epoch + i
                                  }  # write summary for tensorboard visualization
                     _ = sess.run([train_op], feed_dict)
-                    if i == 0:
+                    if i % 100 == 0:
                         tmp2 = time.time()
                         print('record summary: {} s'.format(tmp2 - tmp1))
 
@@ -326,7 +326,7 @@ class CaptioningSolver(object):
                         f.write('\n')
                         f.write("count true:" + str(s.count(True)))
                         f.write('\n')
-                        f.write(str(ref_decoded[0]))
+                        f.write(str(ref_decoded[0][0]))
                         f.write('\n')
                         f.write(str(all_decoded[0]))
                         f.write('\n')
@@ -340,9 +340,11 @@ class CaptioningSolver(object):
                         f.write('\n')
                         f.write("Bleu_4:" + str(scores['Bleu_4']))
                         f.write('\n')
+                        # f.write("Bleu_5:" + str(scores['Bleu_5']))
+                        # f.write('\n')
                         f.write("ROUGE_L:" + str(scores['ROUGE_L']))
                         f.write('\n')
-                        f.write("CIDEr-D:" + str(scores['CIDEr-D']))
+                        f.write("Meteor:" + str(scores['METEOR']))
                         f.write('\n')
                         f.write("CIDEr:" + str(scores['CIDEr']))
                         f.write('\n')
@@ -353,7 +355,7 @@ class CaptioningSolver(object):
                             saver.save(sess, os.path.join(self.model_path, 'model'), global_step=e)
                             print "model-%s saved." % (e + 1)
 
-    def test(self, data, split='train', attention_visualization=False, save_sampled_captions=False):
+    def test(self, data, split='train', attention_visualization=False, save_sampled_captions=True):
         '''
         Args:
             - data: dictionary with the following keys:
@@ -369,10 +371,9 @@ class CaptioningSolver(object):
 
         features = data['features']
         names = data['names']
-        idxs = data['image_idxs']
 
-        n_examples = self.data['captions'].shape[0]
-        n_iters_per_epoch = int(np.ceil(float(n_examples) / self.batch_size))
+        # n_examples = self.data['captions'].shape[0]
+        # n_iters_per_epoch = int(np.ceil(float(n_examples) / self.batch_size))
         # build a graph to sample captions
         alphas, betas, sampled_captions = self.model.build_sampler(max_len=self.max_len)  # (N, max_len, L), (N, max_len)
 
@@ -385,20 +386,6 @@ class CaptioningSolver(object):
             feed_dict = {self.model.features: features_batch}
             alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)  # (N, max_len, L), (N, max_len)
             decoded = decode_captions(sam_cap, self.model.idx_to_word)
-
-            if self.print_bleu:
-                all_gen_cap = np.ndarray((len(features), self.max_len))
-                for i in range(n_iters_per_epoch):
-                    idxs_batch = idxs[k * self.batch_size:(k + 1) * self.batch_size]
-                    names_batch = names[idxs_batch]
-                    features_batch = names2data(features, names_batch)
-                    feed_dict = {self.model.features: features_batch}
-                    gen_cap = sess.run(sampled_captions, feed_dict=feed_dict)
-                    all_gen_cap[i * self.batch_size:(i + 1) * self.batch_size] = gen_cap
-
-                all_decoded = decode_captions(all_gen_cap, self.model.idx_to_word)
-                save_pickle(all_decoded, "./data/val/val.candidate.captions.pkl")
-                scores = evaluate(data_path='./data', split='val', get_scores=True)
 
             if attention_visualization:
                 for n in range(10):
@@ -430,41 +417,123 @@ class CaptioningSolver(object):
                 all_sam_cap = np.ndarray((len(features), self.max_len))
                 num_iter = int(np.ceil(float(len(features)) / self.batch_size))
                 for i in range(num_iter):
-                    idxs_batch = idxs[k * self.batch_size:(k + 1) * self.batch_size]
-                    names_batch = names[idxs_batch]
+                    names_batch = names[i * self.batch_size:(i + 1) * self.batch_size]
                     features_batch = names2data(features, names_batch)
                     feed_dict = {self.model.features: features_batch}
                     all_sam_cap[i * self.batch_size:(i + 1) * self.batch_size] = sess.run(sampled_captions, feed_dict)
                 all_decoded = decode_captions(all_sam_cap, self.model.idx_to_word)
                 save_pickle(all_decoded, "./data/%s/%s.candidate.captions.pkl" % (split, split))
+                if split == 'val':
+                    scores = evaluate(data_path='./data', split='val', get_scores=True)
 
-    def inference(self, data, split='train', attention_visualization=True, save_sampled_captions=True):
-        '''
-        Args:
-            - data: dictionary with the following keys:
-            - features: Feature vectors of shape (5000, 196, 512)
-            - file_names: Image file names of shape (5000, )
-            - captions: Captions of shape (24210, 17)
-            - image_idxs: Indices for mapping caption to image of shape (24210, )
-            - features_to_captions: Mapping feature to captions (5000, 4~5)
-            - split: 'train', 'val' or 'test'
-            - attention_visualization: If True, visualize attention weights with images for each sampled word. (ipthon notebook)
-            - save_sampled_captions: If True, save sampled captions to pkl file for computing BLEU scores.
-        '''
+    def save_result(self, data, split='test', batch_size=1, save_path='./result.json'):
 
+        def decode_captions_save(captions, idx_to_word):
+            if captions.ndim == 1:
+                T = captions.shape[0]
+                N = 1
+            else:
+                N, T = captions.shape
+            decoded = []
+            for i in range(N):
+                words = []
+                for t in range(T):
+                    if captions.ndim == 1:
+                        word = idx_to_word[captions[t]]
+                    else:
+                        word = idx_to_word[captions[i, t]]
+                    if word == '<END>':
+                        break
+                    if word != '<NULL>':
+                        words.append(word)
+                decoded.append(''.join(words))
+            return decoded
+
+        if batch_size is None:
+            batch_size = self.batch_size
         features = data['features']
-
+        file_names = np.array([os.path.split(path)[1] for path in self.data['file_names']])
+        n_examples = len(file_names)
         # build a graph to sample captions
-        alphas, betas, sampled_captions = self.model.build_sampler(max_len=self.max_len)  # (N, max_len, L), (N, max_len)
+        alphas, betas, sampled_captions = self.model.build_sampler(max_len=self.max_len)
 
         config = tf.ConfigProto(allow_soft_placement=True)
+        n_iter_test = int(np.ceil(float(n_examples) / batch_size))
         config.gpu_options.allow_growth = True
+        output_list = []
         with tf.Session(config=config) as sess:
             saver = tf.train.Saver()
-            saver.restore(sess, './model/lstm/model-20')
-            features_batch, image_files = sample_coco_minibatch_inference(data, self.batch_size)
-            feed_dict = {self.model.features: features_batch}
-            alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)  # (N, max_len, L), (N, max_len)
-            decoded = decode_captions(sam_cap, self.model.idx_to_word)
-            print "end"
-            print decoded
+            saver.restore(sess, self.test_model)
+
+            for k in xrange(n_iter_test):
+                filename_batch = file_names[batch_size * k: batch_size * (k + 1)]
+                features_batch = names2data(features, filename_batch)
+                feed_dict = {self.model.features: features_batch}
+                alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)  # (N, max_len, L), (N, max_len)
+                decoded = decode_captions_save(sam_cap, self.model.idx_to_word)
+                for filename, caption in zip(filename_batch, decoded):
+                    output_dict = {}
+                    image_id = filename[:-4]
+                    output_dict['image_id'] = image_id
+                    output_dict['caption'] = caption.encode('utf-8')
+                    output_list.append(output_dict)
+            with open(save_path, 'w') as f:
+                json.dump(output_list, f)
+
+    def save_beamsearch_result(self, data, split='test', batch_size=1, save_path='./result.json'):
+
+        def decode_captions_save(captions, idx_to_word):
+            if captions.ndim == 1:
+                T = captions.shape[0]
+                N = 1
+            else:
+                N, T = captions.shape
+            decoded = []
+            for i in range(N):
+                words = []
+                for t in range(T):
+                    if captions.ndim == 1:
+                        word = idx_to_word[captions[t]]
+                    else:
+                        word = idx_to_word[captions[i, t]]
+                    if word == '<END>':
+                        break
+                    if word != '<NULL>':
+                        words.append(word)
+                decoded.append(''.join(words))
+            return decoded
+
+        if batch_size is None:
+            batch_size = self.batch_size
+        features = data['features']
+        file_names = np.array([os.path.split(path)[1] for path in self.data['file_names']])
+        n_examples = len(file_names)
+        # build a graph to sample captions
+        config = tf.ConfigProto(allow_soft_placement=True)
+        n_iter_test = int(np.ceil(float(n_examples) / batch_size))
+        config.gpu_options.allow_growth = True
+        output_list = []
+        var_list = self.model.build_beamsearch()
+        with tf.Session(config=config) as sess:
+            saver = tf.train.Saver()
+            saver.restore(sess, self.test_model)
+
+            for k in xrange(n_iter_test):
+                filename_batch = file_names[batch_size * k: batch_size * (k + 1)]
+                features_batch = names2data(features, filename_batch).astype(np.float32)
+
+                if k % 100 == 0:
+                    print('processing {} batches'.format(k))
+
+                sam_cap = self.model.beamsearch_sampler(
+                    var_list, features_batch, sess, max_len=self.max_len)  # (N, max_len, L), (N, max_len)
+                decoded = decode_captions_save(sam_cap, self.model.idx_to_word)
+                # print '%s' % decoded[0]
+                for filename, caption in zip(filename_batch, decoded):
+                    output_dict = {}
+                    image_id = filename[:-4]
+                    output_dict['image_id'] = image_id
+                    output_dict['caption'] = caption.encode('utf-8')
+                    output_list.append(output_dict)
+            with open(save_path, 'w') as f:
+                json.dump(output_list, f)

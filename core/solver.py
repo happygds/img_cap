@@ -12,6 +12,9 @@ from scipy import ndimage
 from utils import *
 from bleu import evaluate
 from multiprocessing.dummy import Pool as ThreadPool
+import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 
 def names2data(features, names):
@@ -86,7 +89,7 @@ class CaptioningSolver(object):
         n_examples = self.data['captions'].shape[0]
         n_iters_per_epoch = int(np.ceil(float(n_examples) / self.batch_size))
         n_iters_per_epoch = min(n_iters_per_epoch, self.n_batches)
-        features = self.data['features']
+        # features = self.data['features']
         captions = self.data['captions']
         image_idxs = self.data['image_idxs']
         image_names = np.array([os.path.split(path)[1] for path in self.data['file_names']])
@@ -102,7 +105,13 @@ class CaptioningSolver(object):
 
         # train op
         with tf.name_scope('optimizer'):
-            optimizer = self.optimizer(learning_rate=self.learning_rate)
+            global_step = tf.Variable(0, trainable=False)
+            learning_rate = tf.train.exponential_decay(self.learning_rate,
+                                                       global_step=global_step,
+                                                       decay_steps=n_iters_per_epoch * 3,
+                                                       decay_rate=0.9)
+
+            optimizer = self.optimizer(learning_rate=learning_rate)
             grads = tf.gradients(loss, tf.trainable_variables())
             grads_and_vars = list(zip(grads, tf.trainable_variables()))
             train_op = optimizer.apply_gradients(grads_and_vars=grads_and_vars)
@@ -191,7 +200,9 @@ class CaptioningSolver(object):
                     features_batch = features_split[image_idxs_batch - split * 30000]
                     assert features_batch.shape[2] == 1536, 'dimension of visual features should be (11*11, 1536)'
 
-                    feed_dict = {self.model.features: features_batch, self.model.captions: captions_batch}
+                    feed_dict = {self.model.features: features_batch, self.model.captions: captions_batch,
+                                 global_step: e * n_iters_per_epoch + i
+                                 }
                     _, l = sess.run([train_op, loss], feed_dict)
                     curr_loss += l
 

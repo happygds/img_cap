@@ -21,7 +21,7 @@ model_weights = model_path + 'inception-resnet-v2.caffemodel'
 mean_value = np.array([128.0, 128.0, 128.0])
 std = np.array([128.0, 128.0, 128.0])
 
-net = caffe.Net(model_def, model_weights, caffe.TEST)
+# net = caffe.Net(model_def, model_weights, caffe.TEST)
 
 
 def image_preprocess(img):
@@ -70,7 +70,7 @@ def _build_vocab(annotations, threshold=1):
 
     vocab = [word for word in counter if counter[word] >= threshold]
     print ('Filtered %d words to %d words with word count threshold %d.' % (len(counter), len(vocab), threshold))
-    v_count = [0, 0, 0, 0] + [counter(word) for word in vocab]
+    v_count = [0, 0, 0, 0] + [counter[word] for word in counter]
     v_count = np.asarray(v_count)
 
     word_to_idx = {u'<NULL>': 0, u'<START>': 1, u'<END>': 2, u'<EOP>': 3}
@@ -181,9 +181,14 @@ def main():
                 image_ids[image_id] = 0
                 i += 1
                 feature_to_captions[i] = []
-            feature_to_captions[i].append(caption.lower() + ' .')
+            # caption = ' '.join([x.encode('utf-8') for x in caption.split(' ')])
+            tmp = {}
+            tmp['caption'] = caption.lower()
+            feature_to_captions[i].append(tmp)
         save_pickle(feature_to_captions, 'data/%s/%s.references.pkl' % (split, split))
+        print feature_to_captions.items()[0]
         print "Finished building %s caption dataset" % split
+
     '''
     for split in ['train', 'val', 'test']:
         anno_path = 'data/%s/%s.annotations.pkl' % (split, split)

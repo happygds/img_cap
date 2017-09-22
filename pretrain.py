@@ -15,8 +15,8 @@ def main():
                              ctx2out=True, alpha_c=1.0, selector=True, dropout=True)
 
     solver = CaptioningSolver(model, data, val_data, n_epochs=50000, batch_size=64, update_rule='adam',
-                              learning_rate=0.00005, print_every=500, save_every=1, image_path='./image/',
-                              pretrained_model='./model/att/model-1', model_path='./model/att/', n_batches=10000,
+                              learning_rate=5e-5, print_every=500, save_every=1, image_path='./image/',
+                              pretrained_model=None, model_path='./model/att_jieba/', n_batches=10000,
                               print_bleu=True, log_path='./log/')
 
     solver.train()

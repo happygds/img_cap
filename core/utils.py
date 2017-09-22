@@ -11,15 +11,15 @@ def load_coco_data(data_path='./data', split='train'):
     start_t = time.time()
     data = {}
     # use validation data to debug
-    if split == "debug":
-        split = 'val'
-        with open(os.path.join(os.path.join(data_path, 'train'), 'word_to_idx.pkl'), 'rb') as f:
-            data['word_to_idx'] = pickle.load(f)
+    # if split == "debug":
+    #     split = 'val'
+    with open(os.path.join(os.path.join(data_path, 'train'), 'word_to_idx.pkl'), 'rb') as f:
+        data['word_to_idx'] = pickle.load(f)
     data_path = os.path.join(data_path, split)
     # data['features'] = hickle.load(os.path.join(data_path, '%s.features.hkl' % split))
     if split == 'train':
-        data['features'] = h5py.File(os.path.join(data_path, '%s_split0.features.h5' % split), 'r')
-        # data['features'] = None
+        # data['features'] = h5py.File(os.path.join(data_path, '%s_split0.features.h5' % split), 'r')
+        data['features'] = np.random.randint(10, size=233)
     else:
         data['features'] = h5py.File(os.path.join(data_path, '%s.features.h5' % split), 'r')
 
@@ -30,9 +30,9 @@ def load_coco_data(data_path='./data', split='train'):
     with open(os.path.join(data_path, '%s.image.idxs.pkl' % split), 'rb') as f:
         data['image_idxs'] = pickle.load(f)
 
-    if split == 'train':
-        with open(os.path.join(data_path, 'word_to_idx.pkl'), 'rb') as f:
-            data['word_to_idx'] = pickle.load(f)
+    # if split == 'train':
+    #     with open(os.path.join(data_path, 'word_to_idx.pkl'), 'rb') as f:
+    #         data['word_to_idx'] = pickle.load(f)
 
     for k, v in data.iteritems():
         if type(v) == np.ndarray:
@@ -150,7 +150,7 @@ def write_bleu(scores, path, epoch):
         f.write('Bleu_2: %f\n' % scores['Bleu_2'])
         f.write('Bleu_3: %f\n' % scores['Bleu_3'])
         f.write('Bleu_4: %f\n' % scores['Bleu_4'])
-        # f.write('SPICE: %f\n' % scores['SPICE'])
+        f.write('Meteor: %f\n' % scores['METEOR'])
         f.write('ROUGE_L: %f\n' % scores['ROUGE_L'])
         f.write('CIDEr: %f\n\n' % scores['CIDEr'])
 

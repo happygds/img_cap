@@ -9,15 +9,24 @@ base_path = '/media/dl/expand/ai_challenger_caption_train_20170902'
 word_info = namedtuple('word_info', ['word', 'count'])
 
 
-with open(os.path.join(base_path, 'words_dict.pkl'), 'r+') as f:
+with open('/media/dl/expand/data/train/word_to_idx.pkl', 'rb') as f:
     words_dict = cPickle.load(f)
-    print(len(words_dict))
-words_dict = words_dict[:1000:40] + words_dict[1000::200]
 
-for i, word in enumerate(words_dict):
-    print('the word {} occured {} times'.format(word.word, word.count))
-    # lq = len(unicode(word.word, 'utf-8'))
-    # print(lq)
+with open('/media/dl/expand/data/train/word_counts.pkl', 'rb') as f:
+    words_count = cPickle.load(f)
+
+words_list = []
+print(type(words_dict.keys()))
+for i, key in enumerate(words_dict.keys()):
+    count = words_count[i]
+    words_list.append(word_info(key.encode('utf-8'), count))
+
+print(words_list[:10])
+words_list = sorted(words_list, key=lambda x: -x.count)
+print(words_list[:10])
+
+for i, (word, count) in enumerate(words_list[:1000:10] + words_list[1000::200]):
+    print('word {} occurred {} times'.format(word, count))
 
 with open(os.path.join(base_path, 'caption_train_annotations_cut.json'), 'r') as f:
     data = json.load(f)
