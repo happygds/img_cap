@@ -65,7 +65,6 @@ def evaluate_captions_cider(ref, cand):
         hypo[i] = [{'caption': caption}]
         refe[i] = [{'caption': cap} for cap in ref[i]]
 
-    print('tokenization...')
     tokenizer = PTBTokenizer()
     refe = tokenizer.tokenize(refe)
     hypo = tokenizer.tokenize(hypo)
@@ -86,7 +85,6 @@ def evaluate_captions_bleu(ref, cand):
         hypo[i] = [{'caption': caption}]
         refe[i] = [{'caption': cap} for cap in ref[i]]
 
-    print('tokenization...')
     tokenizer = PTBTokenizer()
     refe = tokenizer.tokenize(refe)
     hypo = tokenizer.tokenize(hypo)
@@ -110,7 +108,6 @@ def evaluate_captions_mix(ref, cand):
         hypo[i] = [{'caption': caption}]
         refe[i] = [{'caption': cap} for cap in ref[i]]
 
-    print('tokenization...')
     tokenizer = PTBTokenizer()
     refe = tokenizer.tokenize(refe)
     hypo = tokenizer.tokenize(hypo)
