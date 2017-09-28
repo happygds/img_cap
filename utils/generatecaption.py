@@ -5,8 +5,8 @@ train_image_path = '/media/dl/expand/ai_challenger_caption_train_20170902/captio
 valid_image_path = '/media/dl/expand/ai_challenger_caption_train_20170902/caption_validation_images_20170902/'
 data_path = '/media/dl/expand/data/'
 
-train_caption_file = data_path + 'caption_train_annotations_cut.json'
-valid_caption_file = data_path + 'caption_valid_annotations_cut.json'
+# train_caption_file = data_path + 'caption_train_annotations_cut.json'
+# valid_caption_file = data_path + 'caption_valid_annotations_cut.json'
 
 
 def generate_ftoid(image_path, prefix):
@@ -43,6 +43,10 @@ def generate_captions(caption_file, filename_to_id):
     for item in caption_data:
         image_id = item['image_id']
         captions = item['caption']
+        if image_id in ['47734ba139ea2b61dd64c35cbc45789ed8e6192e.jpg', 'c858f06c86dd85918e38d91c0a26d2e89fb9e19f.jpg']:
+            print([len(caption.split(' ')) for caption in captions])
+            continue
+
         for caption in captions:
             caption_dict = {}
             caption_dict['image_id'] = filename_to_id[image_id]
@@ -59,8 +63,8 @@ if __name__ == '__main__':
         if not os.path.exists(data_path + subdir):
             os.makedirs(data_path + subdir)
         image_path = '/media/dl/expand/ai_challenger_caption_train_20170902/caption_%s_images_20170902/' % (subdir)
-        caption_file = data_path + 'caption_%s_annotations_cut.json' % (subdir)
+        caption_file = '/media/dl/expand/ai_challenger_caption_train_20170902/caption_%s_annotations_cut.json' % (subdir)
         generate_ftoid(image_path, subdir)
         filename_to_id = pickle.load(file('./%s_filename_to_id.pkl' % (subdir), 'r'))
         captions = generate_captions(caption_file, filename_to_id)
-        json.dump(captions, file(data_path + '%s/%s_captions.json' % (subdir, subdir), 'w'))
+        json.dump(captions, file(data_path + '%s/%s_captions.json' % (subdir, subdir), 'w'), indent=4, separators=(',', ':'))

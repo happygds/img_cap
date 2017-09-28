@@ -126,7 +126,7 @@ class CaptioningSolver(object):
             start_t = time.time()
 
             for e in range(self.n_epochs):
-                rand_idxs = np.random.permutation(n_examples)
+                rand_idxs = np.random.permutation(n_examples)[:(n_iters_per_epoch * self.batch_size)]
                 captions = np.array(captions[rand_idxs])
                 image_idxs = np.array(image_idxs[rand_idxs])
                 b_for_eval = []

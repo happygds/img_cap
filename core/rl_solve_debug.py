@@ -1,7 +1,7 @@
 import tensorflow as tf
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import skimage.transform
 import numpy as np
 import time
@@ -107,7 +107,6 @@ class CaptioningSolver(object):
 
         rewards = tf.placeholder(tf.float32, [None])
         base_line = tf.placeholder(tf.float32, [None])
-        iter_count = tf.placeholder(tf.float32, [None])
 
         grad_mask = tf.placeholder(tf.int32, [None, self.model.T])
         t1 = tf.expand_dims(grad_mask, 1)
@@ -123,7 +122,7 @@ class CaptioningSolver(object):
             learning_rate = tf.train.exponential_decay(self.learning_rate,
                                                        global_step=global_step,
                                                        decay_steps=n_iters_per_epoch * 3,
-                                                       decay_rate=0.9)
+                                                       decay_rate=0.8)
 
             optimizer = self.optimizer(learning_rate=learning_rate)
             norm = tf.reduce_sum(t1_mul)
@@ -154,7 +153,8 @@ class CaptioningSolver(object):
         with tf.Session(config=config) as sess:
 
             saver = tf.train.Saver()
-            saver.restore(sess, self.test_model)
+            if self.model.pretrained_model is not None:
+                saver.restore(sess, self.model.pretrained_model)
             # sess.run(tf.global_variables_initializer())
 
             start_t = time.time()
@@ -175,6 +175,7 @@ class CaptioningSolver(object):
                 scores = evaluate_for_particular_captions(all_decoded_for_eval, data_path='./data', split='val',
                                                           get_scores=True)
 
+                f.write('\n')
                 f.write("before train:")
                 f.write('\n')
                 f.write("Bleu_1:" + str(scores['Bleu_1']))
@@ -185,7 +186,7 @@ class CaptioningSolver(object):
                 f.write('\n')
                 f.write("Bleu_4:" + str(scores['Bleu_4']))
                 f.write('\n')
-                # f.write("Bleu_5:" + str(scores['Bleu_5']))
+                # f.write("SPICE:" + str(scores['SPICE']))
                 # f.write('\n')
                 f.write("ROUGE_L:" + str(scores['ROUGE_L']))
                 f.write('\n')
@@ -193,8 +194,8 @@ class CaptioningSolver(object):
                 f.write('\n')
                 f.write("CIDEr:" + str(scores['CIDEr']))
                 f.write('\n')
-                f.write("metric" + str(1 * scores['Bleu_4'] + 1 * scores['Bleu_3'] +
-                                       0.5 * scores['Bleu_1'] + 0.5 * scores['Bleu_2']))
+                f.write("metric" + str(2. * scores['Bleu_4'] + scores['CIDEr'] +
+                                       2. * scores['ROUGE_L'] + 5. * scores['METEOR']))
                 f.write('\n')
 
             for e in range(self.n_epochs):
@@ -292,7 +293,7 @@ class CaptioningSolver(object):
                         print('record summary: {} s'.format(tmp2 - tmp1))
 
                     if i % self.print_every == 0 and i > 0:
-                        print('Epoch {}: has runned {} iterations !'.format(e, i))
+                        print('Epoch {}: has runned {} iterations !'.format(e + 1, i))
                         print('Reward {} and baseline {}'.format(r[::4], b[::4]))
                         ground_truths = captions_split[image_idxs_split == image_idxs_batch[0]]
                         decoded = decode_captions(ground_truths, self.model.idx_to_word)
@@ -340,7 +341,7 @@ class CaptioningSolver(object):
                         f.write('\n')
                         f.write("Bleu_4:" + str(scores['Bleu_4']))
                         f.write('\n')
-                        # f.write("Bleu_5:" + str(scores['Bleu_5']))
+                        # f.write("SPICE:" + str(scores['SPICE']))
                         # f.write('\n')
                         f.write("ROUGE_L:" + str(scores['ROUGE_L']))
                         f.write('\n')
@@ -348,11 +349,11 @@ class CaptioningSolver(object):
                         f.write('\n')
                         f.write("CIDEr:" + str(scores['CIDEr']))
                         f.write('\n')
-                        f.write("metric" + str(
-                            1 * scores['Bleu_4'] + 1 * scores['Bleu_3'] + 0.5 * scores['Bleu_1'] + 0.5 * scores['Bleu_2']))
+                        f.write("metric" + str(2. * scores['Bleu_4'] + scores['CIDEr'] +
+                                               2. * scores['ROUGE_L'] + 5. * scores['METEOR']))
                         f.write('\n')
                         if (e + 1) % self.save_every == 0:
-                            saver.save(sess, os.path.join(self.model_path, 'model'), global_step=e)
+                            saver.save(sess, os.path.join(self.model_path, 'model'), global_step=e + 1)
                             print "model-%s saved." % (e + 1)
 
     def test(self, data, split='train', attention_visualization=False, save_sampled_captions=True):
@@ -387,31 +388,31 @@ class CaptioningSolver(object):
             alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)  # (N, max_len, L), (N, max_len)
             decoded = decode_captions(sam_cap, self.model.idx_to_word)
 
-            if attention_visualization:
-                for n in range(10):
-                    print "Sampled Caption: %s" % decoded[n]
+            # if attention_visualization:
+            #     for n in range(10):
+            #         print "Sampled Caption: %s" % decoded[n]
 
-                    # Plot original image
-                    img = ndimage.imread(image_files[n])
-                    plt.clf()
-                    plt.subplot(4, 5, 1)
-                    plt.imshow(img)
-                    plt.axis('off')
+            #         # Plot original image
+            #         img = ndimage.imread(image_files[n])
+            #         plt.clf()
+            #         plt.subplot(4, 5, 1)
+            #         plt.imshow(img)
+            #         plt.axis('off')
 
-                    # Plot images with attention weights
-                    words = decoded[n].split(" ")
-                    for t in range(len(words)):
-                        if t > 18:
-                            break
-                        plt.subplot(4, 5, t + 2)
-                        plt.text(0, 1, '%s(%.2f)' % (words[t], bts[n, t]), color='black', backgroundcolor='white',
-                                 fontsize=8)
-                        plt.imshow(img)
-                        alp_curr = alps[n, t, :].reshape(14, 14)
-                        alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=16, sigma=20)
-                        plt.imshow(alp_img, alpha=0.85)
-                        plt.axis('off')
-                    plt.savefig(str(n) + 'test.pdf')
+            #         # Plot images with attention weights
+            #         words = decoded[n].split(" ")
+            #         for t in range(len(words)):
+            #             if t > 18:
+            #                 break
+            #             plt.subplot(4, 5, t + 2)
+            #             plt.text(0, 1, '%s(%.2f)' % (words[t], bts[n, t]), color='black', backgroundcolor='white',
+            #                      fontsize=8)
+            #             plt.imshow(img)
+            #             alp_curr = alps[n, t, :].reshape(14, 14)
+            #             alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=16, sigma=20)
+            #             plt.imshow(alp_img, alpha=0.85)
+            #             plt.axis('off')
+            #         plt.savefig(str(n) + 'test.pdf')
 
             if save_sampled_captions:
                 all_sam_cap = np.ndarray((len(features), self.max_len))
@@ -452,7 +453,10 @@ class CaptioningSolver(object):
         if batch_size is None:
             batch_size = self.batch_size
         features = data['features']
-        file_names = np.array([os.path.split(path)[1] for path in self.data['file_names']])
+        file_names = np.array([os.path.split(path)[1] for path in data['file_names']])
+        for _, fname in enumerate(file_names):
+            assert fname.lower().endswith('.jpg')
+
         n_examples = len(file_names)
         # build a graph to sample captions
         alphas, betas, sampled_captions = self.model.build_sampler(max_len=self.max_len)
@@ -469,6 +473,9 @@ class CaptioningSolver(object):
                 filename_batch = file_names[batch_size * k: batch_size * (k + 1)]
                 features_batch = names2data(features, filename_batch)
                 feed_dict = {self.model.features: features_batch}
+                if k % 100 == 0:
+                    print('processing {} batches'.format(k))
+
                 alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)  # (N, max_len, L), (N, max_len)
                 decoded = decode_captions_save(sam_cap, self.model.idx_to_word)
                 for filename, caption in zip(filename_batch, decoded):
@@ -478,7 +485,7 @@ class CaptioningSolver(object):
                     output_dict['caption'] = caption.encode('utf-8')
                     output_list.append(output_dict)
             with open(save_path, 'w') as f:
-                json.dump(output_list, f)
+                json.dump(output_list, f, ensure_ascii=False, indent=4, separators=(',', ':'))
 
     def save_beamsearch_result(self, data, split='test', batch_size=1, save_path='./result.json'):
 
@@ -513,6 +520,7 @@ class CaptioningSolver(object):
         n_iter_test = int(np.ceil(float(n_examples) / batch_size))
         config.gpu_options.allow_growth = True
         output_list = []
+        bk = 2
         var_list = self.model.build_beamsearch()
         with tf.Session(config=config) as sess:
             saver = tf.train.Saver()
@@ -523,10 +531,10 @@ class CaptioningSolver(object):
                 features_batch = names2data(features, filename_batch).astype(np.float32)
 
                 if k % 100 == 0:
-                    print('processing {} batches'.format(k))
+                    print('processing {} batches, bt is {}'.format(k, bk))
 
                 sam_cap = self.model.beamsearch_sampler(
-                    var_list, features_batch, sess, max_len=self.max_len)  # (N, max_len, L), (N, max_len)
+                    var_list, features_batch, sess, max_len=self.max_len, k=bk)  # (N, max_len, L), (N, max_len)
                 decoded = decode_captions_save(sam_cap, self.model.idx_to_word)
                 # print '%s' % decoded[0]
                 for filename, caption in zip(filename_batch, decoded):
@@ -536,4 +544,4 @@ class CaptioningSolver(object):
                     output_dict['caption'] = caption.encode('utf-8')
                     output_list.append(output_dict)
             with open(save_path, 'w') as f:
-                json.dump(output_list, f)
+                json.dump(output_list, f, ensure_ascii=False, indent=4, separators=(',', ':'))

@@ -12,6 +12,9 @@ word_info = namedtuple('word_info', ['word', 'count'])
 with open('/media/dl/expand/data/train/word_to_idx.pkl', 'rb') as f:
     words_dict = cPickle.load(f)
 
+with open('/media/dl/expand/data/train/train.file.names.pkl', 'rb') as f:
+    fnames = cPickle.load(f)
+
 with open('/media/dl/expand/data/train/word_counts.pkl', 'rb') as f:
     words_count = cPickle.load(f)
 
@@ -25,8 +28,9 @@ print(words_list[:10])
 words_list = sorted(words_list, key=lambda x: -x.count)
 print(words_list[:10])
 
-for i, (word, count) in enumerate(words_list[:1000:10] + words_list[1000::200]):
-    print('word {} occurred {} times'.format(word, count))
+for i, (word, count) in enumerate(words_list[:2000]):
+    if len(word) > 11:
+        print('word {} occurred {} times with length {}'.format(word, count, len(word)))
 
 with open(os.path.join(base_path, 'caption_train_annotations_cut.json'), 'r') as f:
     data = json.load(f)

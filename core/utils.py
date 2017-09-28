@@ -30,9 +30,9 @@ def load_coco_data(data_path='./data', split='train'):
     with open(os.path.join(data_path, '%s.image.idxs.pkl' % split), 'rb') as f:
         data['image_idxs'] = pickle.load(f)
 
-    # if split == 'train':
-    #     with open(os.path.join(data_path, 'word_to_idx.pkl'), 'rb') as f:
-    #         data['word_to_idx'] = pickle.load(f)
+    if split == 'test':
+        print('test split')
+        data['file_names'] = np.asarray(data['features'].keys())
 
     for k, v in data.iteritems():
         if type(v) == np.ndarray:
@@ -139,8 +139,8 @@ def sample_coco_minibatch_inference(data, batch_size):
     return features, file_names
 
 
-def write_bleu(scores, path, epoch):
-    if epoch == 1:
+def write_bleu(scores, path, epoch, val_loss=None):
+    if epoch == 0:
         file_mode = 'w'
     else:
         file_mode = 'a'
@@ -153,6 +153,8 @@ def write_bleu(scores, path, epoch):
         f.write('Meteor: %f\n' % scores['METEOR'])
         f.write('ROUGE_L: %f\n' % scores['ROUGE_L'])
         f.write('CIDEr: %f\n\n' % scores['CIDEr'])
+        if val_loss is not None:
+            f.write('val_loss: %f\n\n' % val_loss)
 
 
 def load_pickle(path):

@@ -109,7 +109,7 @@ class CaptioningSolver(object):
             learning_rate = tf.train.exponential_decay(self.learning_rate,
                                                        global_step=global_step,
                                                        decay_steps=n_iters_per_epoch * 3,
-                                                       decay_rate=0.9)
+                                                       decay_rate=0.8)
 
             optimizer = self.optimizer(learning_rate=learning_rate)
             grads = tf.gradients(loss, tf.trainable_variables())
@@ -147,7 +147,7 @@ class CaptioningSolver(object):
             start_t = time.time()
 
             for e in range(self.n_epochs):
-                rand_idxs = np.random.permutation(n_examples)
+                rand_idxs = np.random.permutation(n_examples)[:(n_iters_per_epoch * self.batch_size)]
                 captions = captions[rand_idxs]
                 image_idxs = image_idxs[rand_idxs]
                 image_names = np.asarray(image_names[image_idxs])
@@ -230,6 +230,7 @@ class CaptioningSolver(object):
                 # print out BLEU scores and file write
                 if self.print_bleu:
                     all_gen_cap = np.ndarray((len(val_features), self.max_len))
+
                     for i in range(n_iters_val):
                         names_batch = val_names[i * self.batch_size:(i + 1) * self.batch_size]
                         features_batch = names2data(val_features, names_batch)

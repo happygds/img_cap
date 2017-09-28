@@ -14,10 +14,10 @@ def main():
                              dim_hidden=1024, n_time_step=26, prev2out=True,
                              ctx2out=True, alpha_c=1.0, selector=True, dropout=True)
 
-    solver = CaptioningSolver(model, data, val_data, n_epochs=50000, batch_size=64, update_rule='adam',
+    solver = CaptioningSolver(model, data, val_data, n_epochs=25, batch_size=50, update_rule='adam',
                               learning_rate=1.e-5, print_every=500, save_every=1, image_path='./image/',
-                              pretrained_model=None, model_path='./model/rl_att_mix/',
-                              test_model='./model/att/model-10', n_batches=10000,
+                              pretrained_model=None, model_path='./model/rl_att_mix_jieba/',
+                              test_model=None, n_batches=10000,
                               print_bleu=True, log_path='./log/')
 
     solver.train()

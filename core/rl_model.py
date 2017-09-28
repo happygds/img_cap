@@ -318,83 +318,14 @@ class CaptionGenerator(object):
         sampled_captions = tf.transpose(tf.pack(sampled_word_list), (1, 0))  # (N, max_len)
         return alphas, betas, sampled_captions, loss_out
 
-    def build_beamsearch_sampler(self, max_len=20, k=5):
-        features = self.features
 
-        # batch normalize feature vectors
-        features = self._batch_norm(features, mode='test', name='conv_features')
+def build_beamsearch(self):
 
-        c, h = self._get_initial_lstm(features=features)
-        features_proj = self._project_features(features=features)
-
-        alpha_list = []
-        beta_list = []
-        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(num_units=self.H)
-        sampled_word = None
-        hyp_scores = tf.zeros(1)
-        hyp_samples = []
-
-        for t in range(max_len):
-            if t == 0:
-                x = self._word_embedding(inputs=tf.fill([tf.shape(features)[0]], self._start))
-            else:
-                x = self._word_embedding(inputs=sampled_word, reuse=True)
-
-            context, alpha = self._attention_layer(features, features_proj, h, reuse=(t != 0))
-            alpha_list.append(alpha)
-
-            if self.selector:
-                context, beta = self._selector(context, h, reuse=(t != 0))
-                beta_list.append(beta)
-
-            with tf.variable_scope('lstm', reuse=(t != 0)):
-                _, (c, h) = lstm_cell(inputs=tf.concat(1, [x, context]), state=[c, h])
-
-            logits = self._decode_lstm(x, h, context, reuse=(t != 0))
-            softmax = tf.nn.softmax(logits, dim=-1, name=None)
-            cand_scores = hyp_scores[:, None] - tf.log(softmax)
-            cand_flat = tf.reshape(cand_scores, (tf.shape(cand_scores)[0] * tf.shape(cand_scores)[1], ))
-            voc_size = tf.shape(softmax)[1]
-            costs, ranks_flat = tf.nn.top_k(cand_flat, k)
-            trans_indices = tf.div(ranks_flat, voc_size)
-            word_indices = tf.mod(ranks_flat, voc_size)
-            new_hyp_samples = []
-            new_hyp_scores = []
-            new_hyp_c = []
-            new_hyp_h = []
-            print 't------', t
-            for idx in range(k):
-                ti = trans_indices[idx]
-                wi = word_indices[idx]
-                if t == 0:
-                    new_hyp_samples.append(wi)
-                elif t == 1:
-                    new_hyp_samples.append(tf.concat([hyp_samples[ti], tf.expand_dims(wi, axis=-1)], 0))
-                else:
-                    new_hyp_samples.append(tf.concat([hyp_samples[ti], tf.expand_dims(wi, axis=-1)], 0))
-                new_hyp_scores.append(costs[ti])
-                new_hyp_c.append(c[ti])
-                new_hyp_h.append(h[ti])
-
-            c = tf.stack(new_hyp_c)
-            h = tf.stack(new_hyp_h)
-            hyp_scores = tf.stack(new_hyp_scores)
-            hyp_samples = tf.stack(new_hyp_samples)
-            if t == 0:
-                sampled_word = hyp_samples[:]
-            else:
-                sampled_word = hyp_samples[:, -1]
-
-        alphas = tf.transpose(tf.pack(alpha_list), (1, 0, 2))  # (N, T, L)
-        betas = tf.expand_dims(tf.squeeze(beta_list), axis=0)  # (N, T)
-        sampled_captions = tf.expand_dims(hyp_samples[tf.argmax(hyp_scores)], axis=0)  # (N, max_len)
-        return alphas, betas, sampled_captions
-
-    def build_beamsearch(self):
         features_ori = self.features
         # caluculate initial c, h np_value
-        init_c_s, init_h_s = self._get_initial_lstm(features=features_ori)
         features = self._batch_norm(features_ori, mode='test', name='conv_features')
+        init_c_s, init_h_s = self._get_initial_lstm(features=features)
+
         init_c = tf.placeholder(tf.float32, (None, self.H))
         init_h = tf.placeholder(tf.float32, (None, self.H))
         # build one-step LSTM forward
@@ -413,9 +344,10 @@ class CaptionGenerator(object):
         softmax = tf.nn.softmax(logits, dim=-1, name=None)
         return [features_ori, init_c_s, init_h_s, init_c, init_h, sampled_word, c, h, softmax]
 
-    def beamsearch_sampler(self, var_list, init_feat, sess, max_len=20, k=5):
+def beamsearch_sampler(self, var_list, init_feat, sess, max_len=20, k=2):
 
         # batch normalize feature vectors
+
         features, init_c_s, init_h_s, init_c, init_h, sampled_word, c, h, softmax = var_list
 
         next_c, next_h = sess.run([init_c_s, init_h_s], feed_dict={features: init_feat})
@@ -449,7 +381,7 @@ class CaptionGenerator(object):
             new_hyp_h = []
             for idx, [ti, wi] in enumerate(zip(trans_indices, word_indices)):
                 new_hyp_samples.append(hyp_samples[ti] + [wi])
-                new_hyp_scores[idx] = copy.copy(costs[ti])
+                new_hyp_scores[idx] = copy.copy(costs[idx])
                 new_hyp_c.append(copy.copy(next_c[ti]))
                 new_hyp_h.append(copy.copy(next_h[ti]))
                 # new_hyp_memory_cells.append(copy.copy(next_memory_cell[ti]))
@@ -462,7 +394,7 @@ class CaptionGenerator(object):
             hyp_h = []
 
             for idx in xrange(len(new_hyp_samples)):
-                if new_hyp_samples[idx][-1] == 0:
+                if new_hyp_samples[idx][-1] == self._end:
                     sample.append(np.asarray(new_hyp_samples[idx], dtype=np.int32))
                     sample_score.append(new_hyp_scores[idx])
                     dead_k += 1
@@ -490,7 +422,7 @@ class CaptionGenerator(object):
             for idx in xrange(live_k):
                 sample.append(np.asarray(hyp_samples[idx], dtype=np.int32))
                 sample_score.append(hyp_scores[idx])
-        index = np.argmax(sample_score)
+        index = np.argmin(sample_score)
         # print 'index', index
         # print 'index', type(index)
         # print len(sample)

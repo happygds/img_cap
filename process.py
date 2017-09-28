@@ -5,11 +5,14 @@ import caffe
 import cv2
 import h5py
 import os
+from core.utils import save_pickle
+
 caffe.set_device(0)
 caffe.set_mode_gpu()
 
 train_image_folder = '/media/dl/expand/ai_challenger_caption_train_20170902/caption_train_images_20170902/'
 valid_image_folder = '/media/dl/expand/ai_challenger_caption_train_20170902/caption_validation_images_20170902/'
+test_image_folder = '/media/dl/expand/ai_challenger_caption_train_20170902/caption_test1_images_20170923/'
 data_path = '/media/dl/expand/data/'
 
 
@@ -37,8 +40,15 @@ def image_preprocess(img):
 def generate_feats(prefix, outfilename):
     if prefix == 'train':
         image_folder = train_image_folder
-    else:
+    elif prefix == 'valid':
         image_folder = valid_image_folder
+    else:
+        image_folder = test_image_folder
+
+    if prefix == 'test':
+        file_names = os.listdir(test_image_folder)
+        save_pickle(file_names, '/media/dl/expand/data/%s/%s.file.names.pkl' % (prefix, prefix))
+
     image_paths = generate_ftoid(image_folder)
     h5f = h5py.File(outfilename, mode='a')
     keys = set(h5f.keys())
@@ -81,5 +91,6 @@ def generate_feats(prefix, outfilename):
         print ("Processed %d %s features.." % (end, prefix))
 
 
-generate_feats('train', '/media/dl/expand/data/train/train.features.h5')
+# generate_feats('train', '/media/dl/expand/data/train/train.features.h5')
 # generate_feats('validation', '/media/dl/expand/data/val/val.features.h5')
+generate_feats('test', '/media/dl/expand/data/test/test.features.h5')

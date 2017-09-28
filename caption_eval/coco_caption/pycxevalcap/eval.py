@@ -28,15 +28,13 @@ class COCOEvalCap:
         # Set up scorers
         # =================================================
         print('tokenization...')
-        # print(res.items()[0])
-        # tmp = gts.items()[0]
-        # print type(tmp), type(res)
-        # pdb.set_trace()
+        # tmp1 = gts.items()[0]
 
         tokenizer = PTBTokenizer()
         gts  = tokenizer.tokenize(gts)
         res = tokenizer.tokenize(res)
-        # print(res.items()[0], gts.items()[0])
+        # tmp2 = gts.items()[0]
+        # pdb.set_trace()
 
 
 

@@ -11,6 +11,7 @@ import caffe
 import cv2
 train_image_path = '/media/dl/expand/ai_challenger_caption_train_20170902/caption_train_images_20170902/'
 val_image_path = '/media/dl/expand/ai_challenger_caption_train_20170902/caption_validation_images_20170902/'
+test_image_folder = '/media/dl/expand/ai_challenger_caption_train_20170902/caption_test1_images_20170923/'
 caffe.set_device(0)
 caffe.set_mode_gpu()
 
@@ -29,7 +30,7 @@ def image_preprocess(img):
     return cv2.merge([(b - mean_value[0]) / std[0], (g - mean_value[1]) / std[1], (r - mean_value[2]) / std[2]])
 
 
-def _process_caption_data(caption_file, image_dir, max_length):
+def _process_caption_data(caption_file, image_dir, max_length, train=True):
     with open(caption_file) as f:
         annotations = json.load(f)
 
@@ -44,16 +45,17 @@ def _process_caption_data(caption_file, image_dir, max_length):
     caption_data.sort_values(by='image_id', inplace=True)
     caption_data = caption_data.reset_index(drop=True)
 
-    del_idx = []
-    for i, caption in enumerate(caption_data['caption']):
-        if len(caption.split(" ")) > max_length:
-            del_idx.append(i)
+    if train:
+        del_idx = []
+        for i, caption in enumerate(caption_data['caption']):
+            if len(caption.split(" ")) > max_length:
+                del_idx.append(i)
 
-    # delete captions if size is larger than max_length
-    print "The number of captions before deletion: %d" % len(caption_data)
-    caption_data = caption_data.drop(caption_data.index[del_idx])
-    caption_data = caption_data.reset_index(drop=True)
-    print "The number of captions after deletion: %d" % len(caption_data)
+        # delete captions if size is larger than max_length
+        print "The number of captions before deletion: %d" % len(caption_data)
+        caption_data = caption_data.drop(caption_data.index[del_idx])
+        caption_data = caption_data.reset_index(drop=True)
+        print "The number of captions after deletion: %d" % len(caption_data)
     return caption_data
 
 
@@ -82,7 +84,7 @@ def _build_vocab(annotations, threshold=1):
     return word_to_idx, v_count
 
 
-def _build_caption_vector(annotations, word_to_idx, max_length=15):
+def _build_caption_vector(annotations, word_to_idx, max_length=25):
     n_examples = len(annotations)
     captions = np.ndarray((n_examples, max_length + 2)).astype(np.int32)
 
@@ -100,7 +102,7 @@ def _build_caption_vector(annotations, word_to_idx, max_length=15):
             for j in range(max_length + 2 - len(cap_vec)):
                 cap_vec.append(word_to_idx['<NULL>'])
 
-        captions[i, :] = np.asarray(cap_vec)
+        captions[i, :] = np.asarray(cap_vec[:(max_length + 2)])
     print "Finished building caption vectors"
     return captions
 
@@ -145,7 +147,7 @@ def main():
     val_dataset = _process_caption_data(
         caption_file='./data/validation/validation_captions.json',
         image_dir=val_image_path,
-        max_length=max_length)
+        max_length=max_length, train=False)
 #
     # # about 4000 images and 20000 captions for val / test dataset
 
@@ -173,17 +175,18 @@ def main():
         save_pickle(image_idxs, 'data/%s/%s.image.idxs.pkl' % (split, split))
 
         # prepare reference captions to compute bleu scores later
-        image_ids = {}
+        image_ids = set('none')
         feature_to_captions = {}
         i = -1
         for caption, image_id in zip(annotations['caption'], annotations['image_id']):
             if image_id not in image_ids:
-                image_ids[image_id] = 0
+                image_ids.add(image_id)
                 i += 1
                 feature_to_captions[i] = []
             # caption = ' '.join([x.encode('utf-8') for x in caption.split(' ')])
             tmp = {}
-            tmp['caption'] = caption.lower()
+            caption = unicode(caption.encode('utf-8'), 'utf-8')
+            tmp['caption'] = caption
             feature_to_captions[i].append(tmp)
         save_pickle(feature_to_captions, 'data/%s/%s.references.pkl' % (split, split))
         print feature_to_captions.items()[0]

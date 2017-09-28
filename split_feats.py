@@ -3,9 +3,6 @@ import numpy as np
 import pickle
 import math
 import os
-from multiprocessing.dummy import Pool as ThreadPool
-
-pool = ThreadPool(8)
 
 splits = 7
 
