@@ -1,5 +1,5 @@
-from core.rl_solve_debug import CaptioningSolver
-from core.rl_model import CaptionGenerator
+from core.rl_solve_bu import CaptioningSolver
+from core.rl_model_bu import CaptionGenerator
 from core.utils import load_coco_data
 
 
@@ -10,15 +10,14 @@ def main():
     # load val dataset to print out bleu scores every epoch
     val_data = load_coco_data(data_path='./data', split='val')
 
-    model = CaptionGenerator(word_to_idx, dim_feature=[121, 1536], dim_embed=512,
-                             dim_hidden=1024, n_time_step=26, prev2out=True,
-                             ctx2out=True, alpha_c=1.0, selector=True, dropout=True)
+    model = CaptionGenerator(word_to_idx, dim_feature=[[121, 1536], [36, 2048]], dim_embed=1000,
+                             dim_hidden=1000, n_time_step=26, prev2out=True, dim_att_hid=512,
+                             ctx2out=True, alpha_c=0, selector=True, dropout=True)
 
     solver = CaptioningSolver(model, data, val_data, n_epochs=25, batch_size=50, update_rule='adam',
-                              learning_rate=1.e-5, print_every=500, save_every=1, image_path='./image/',
-                              pretrained_model=None, model_path='./model/rl_att_mix_jieba/',
-                              test_model=None, n_batches=10000,
-                              print_bleu=True, log_path='./log/')
+                              learning_rate=5e-6, print_every=500, save_every=1, image_path='./image/',
+                              pretrained_model='./model/all_att/model-11', model_path='./model/rl_all_att/',
+                              n_batches=6000, print_bleu=True, log_path='./log/')
 
     solver.train()
 

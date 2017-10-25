@@ -20,6 +20,9 @@ sys.setdefaultencoding('utf-8')
 
 pool = ThreadPool(10)
 eps = 1e-10
+split_num = 7
+split_count = 210000 // split_num
+assert 210000 % split_num == 0
 
 
 def names2data(features, names):
@@ -153,8 +156,8 @@ class CaptioningSolver(object):
         with tf.Session(config=config) as sess:
 
             saver = tf.train.Saver()
-            if self.model.pretrained_model is not None:
-                saver.restore(sess, self.model.pretrained_model)
+            if self.pretrained_model is not None:
+                saver.restore(sess, self.pretrained_model)
             # sess.run(tf.global_variables_initializer())
 
             start_t = time.time()
@@ -194,11 +197,11 @@ class CaptioningSolver(object):
                 f.write('\n')
                 f.write("CIDEr:" + str(scores['CIDEr']))
                 f.write('\n')
-                f.write("metric" + str(2. * scores['Bleu_4'] + scores['CIDEr'] +
-                                       2. * scores['ROUGE_L'] + 5. * scores['METEOR']))
+                f.write("metric " + str(2. * scores['Bleu_4'] + scores['CIDEr'] +
+                                        5. * scores['ROUGE_L'] + 10. * scores['METEOR']))
                 f.write('\n')
 
-            for e in range(self.n_epochs):
+            for e in range(0, self.n_epochs):
                 rand_idxs = np.random.permutation(n_examples)
                 captions = np.array(captions[rand_idxs])
                 image_idxs = np.array(image_idxs[rand_idxs])
@@ -209,16 +212,16 @@ class CaptioningSolver(object):
                 n_iters_list = [0]
                 image_idxs_list_tmp = []
                 captions_list_tmp = []
-                for s in range(7):
+                for s in range(split_num):
                     image_idxs_split = image_idxs[np.where(np.logical_and(
-                        image_idxs >= s * 30000, image_idxs < (s + 1) * 30000))]
+                        image_idxs >= s * split_count, image_idxs < (s + 1) * split_count))]
                     captions_split = captions[np.where(np.logical_and(
-                        image_idxs >= s * 30000, image_idxs < (s + 1) * 30000))]
+                        image_idxs >= s * split_count, image_idxs < (s + 1) * split_count))]
 
                     image_idxs_list_tmp.append(image_idxs_split)
                     captions_list_tmp.append(captions_split)
                 # random shuffle
-                inds_list = range(7)
+                inds_list = range(split_num)
                 random.shuffle(inds_list)
                 image_idxs_list = [image_idxs_list_tmp[x] for x in inds_list]
                 captions_list = [captions_list_tmp[x] for x in inds_list]
@@ -226,7 +229,7 @@ class CaptioningSolver(object):
 
                 n_iters_list = [0] + [len(x) // self.batch_size for x in image_idxs_list]
                 n_iters_list = np.cumsum(np.asarray(n_iters_list))[:-1]
-                assert len(n_iters_list) == 7
+                assert len(n_iters_list) == split_num
                 print('iter_list is {}').format(n_iters_list)
 
                 b_for_eval = []
@@ -238,7 +241,8 @@ class CaptioningSolver(object):
                         s_num = np.where(n_iters_list == i)[0][0]
                         features_split = None
                         print('read split {} features'.format(split))
-                        with h5py.File('./data/train/train_split{}.features.h5'.format(split), 'r') as f_tmp:
+                        with h5py.File('./data/train/split{}/train_split{}.features.h5'.format(
+                                split_num, split), 'r') as f_tmp:
                             features_split = f_tmp['features'][:]
                         captions_split = captions_list[s_num]
                         image_idxs_split = image_idxs_list[s_num]
@@ -251,7 +255,7 @@ class CaptioningSolver(object):
                     captions_batch = np.array(captions_split[tmp_i * self.batch_size:(tmp_i + 1) * self.batch_size])
                     image_idxs_batch = np.array(image_idxs_split[tmp_i * self.batch_size:(tmp_i + 1) * self.batch_size])
 
-                    features_batch = features_split[image_idxs_batch - split * 30000]
+                    features_batch = features_split[image_idxs_batch - split * split_count]
                     assert features_batch.shape[2] == 1536, 'dimension of visual features should be (11*11, 1536)'
 
                     tmp1 = time.time()
@@ -349,8 +353,8 @@ class CaptioningSolver(object):
                         f.write('\n')
                         f.write("CIDEr:" + str(scores['CIDEr']))
                         f.write('\n')
-                        f.write("metric" + str(2. * scores['Bleu_4'] + scores['CIDEr'] +
-                                               2. * scores['ROUGE_L'] + 5. * scores['METEOR']))
+                        f.write("metric " + str(2. * scores['Bleu_4'] + scores['CIDEr'] +
+                                                5. * scores['ROUGE_L'] + 10. * scores['METEOR']))
                         f.write('\n')
                         if (e + 1) % self.save_every == 0:
                             saver.save(sess, os.path.join(self.model_path, 'model'), global_step=e + 1)

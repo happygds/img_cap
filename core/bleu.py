@@ -6,16 +6,18 @@ from caption_eval.coco_caption.pycxevalcap.bleu.bleu import Bleu
 from caption_eval.coco_caption.pycxevalcap.rouge.rouge import Rouge
 from caption_eval.coco_caption.pycxevalcap.meteor.meteor import Meteor
 from caption_eval.coco_caption.pycxevalcap.cider.cider import Cider
-# from caption_eval.coco_caption.pycxevalcap.spice.spice import Spice
+from caption_eval.coco_caption.pycxevalcap.ciderD.ciderD import CiderD
 from caption_eval.coco_caption.pycxevalcap.tokenizer.ptbtokenizer import PTBTokenizer
 import pdb
 import numpy as np
 import jieba
+import time
+tokenizer = PTBTokenizer()
+
+cached_tokens = 'ai-train-words'
 
 
 def score_all(ref, hypo):
-    print('tokenization...')
-    tokenizer = PTBTokenizer()
     ref = tokenizer.tokenize(ref)
     hypo = tokenizer.tokenize(hypo)
 
@@ -50,6 +52,7 @@ def evaluate_for_particular_captions(cand, data_path='./data', split='val', get_
     # make dictionary
     hypo = {}
     refe = {}
+    # print cand[0], ref[0]
 
     for i, caption in enumerate(cand):
         caption = ''.join(caption.split(' ')).strip().replace('.', '')
@@ -68,51 +71,24 @@ def evaluate_for_particular_captions(cand, data_path='./data', split='val', get_
     return final_scores
 
 
-def evaluate_captions_cider(ref, cand):
-    hypo = {}
-    refe = {}
-
-    for i, caption in enumerate(cand):
-        # hypo[i] = [{'caption': caption}]
-        # refe[i] = [{'caption': cap} for cap in ref[i]]
-        hypo[i] = [caption]
-        refe[i] = ref[i]
-
-    # tokenizer = PTBTokenizer()
-    # refe = tokenizer.tokenize(refe)
-    # hypo = tokenizer.tokenize(hypo)
-
-    scorers = [
-        (Cider(), "CIDEr")
-    ]
-    for scorer, method in scorers:
-        _, scores = scorer.compute_score(refe, hypo)
-        assert len(scores) == len(cand)
-    return scores
-
-
-def evaluate_captions_mix(ref, cand):
+def evaluate_captions_all(ref, cand):
     hypo = {}
     refe = {}
     for i, caption in enumerate(cand):
         # hypo[i] = [{'caption': caption}]
         # refe[i] = [{'caption': cap} for cap in ref[i]]
-        caption = ''.join(caption.split(' ')[1:]).strip().replace('.', '').encode('utf-8')
+        caption = ''.join(caption.split(' ')).strip().replace('.', '').replace(' ', '').encode('utf-8')
         caption = jieba.cut(caption, cut_all=False)
         caption = ' '.join(caption).encode('utf-8')
-        # caption = unicode(caption.encode('utf-8'), 'utf-8')
-        hypo[i] = [caption]
-        refe[i] = [' '.join(x.split(' ')[1:]).strip().replace('.', '').encode('utf-8') for x in ref[i]]
+        hypo[i] = [unicode(caption, 'utf-8')]
+        refe[i] = [' '.join(x.split(' ')[1:]).strip().replace('.', '') for x in ref[i]]
 
-    # tokenizer = PTBTokenizer()
-    # refe = tokenizer.tokenize(refe)
-    # hypo = tokenizer.tokenize(hypo)refe
-    # print refe[0]
-    # pdb.set_trace()
+    refe = tokenizer.tokenize(refe)
+    hypo = tokenizer.tokenize(hypo)
 
     scorers = [
         (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
-        (Cider(), "CIDEr"),
+        (CiderD(df=cached_tokens), "CIDEr"),
         (Meteor(), "METEOR"),
         (Rouge(), "ROUGE_L")
     ]
@@ -129,7 +105,45 @@ def evaluate_captions_mix(ref, cand):
         else:
             final_scores[method] = np.asarray(scores)
             assert len(scores) == len(cand)
-    return final_scores['CIDEr'] + 2. * final_scores['ROUGE_L'] + 2. * final_scores['Bleu_4'] + 5. * final_scores['METEOR']
+    return final_scores['CIDEr'] + 5. * final_scores['ROUGE_L'] + \
+        2. * final_scores['Bleu_4'] + 10. * final_scores['METEOR']
+
+
+def evaluate_captions_mix(ref, cand):
+    hypo = {}
+    refe = {}
+    # print cand[0], ref[0]
+    for i, caption in enumerate(cand):
+        # hypo[i] = [' '.join(caption.split(' ')).strip().replace('.', '').replace(' ', '').encode('utf-8')]
+        # refe[i] = [' '.join(x.split(' ')[1:]).strip().replace('.', '').encode('utf-8') for x in ref[i]]
+        caption = ''.join(caption.split(' ')).strip().replace('.', '').replace(' ', '').encode('utf-8')
+        caption = jieba.cut(caption, cut_all=False)
+        caption = ' '.join(caption).encode('utf-8')
+        hypo[i] = [caption]
+        refe[i] = [' '.join(x.split(' ')[1:]).strip().replace('.', '').encode('utf-8') for x in ref[i]]
+    # print hypo[0], refe[0]
+
+    scorers = [
+        # (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
+        (CiderD(df=cached_tokens), "CIDEr"),
+        # (Meteor(), "METEOR"),
+        # (Rouge(), "ROUGE_L")
+    ]
+    final_scores = {}
+    for scorer, method in scorers:
+        if type(method) == list:
+            score, scores = scorer.compute_score(refe, hypo, verbose=0)
+        else:
+            score, scores = scorer.compute_score(refe, hypo)
+        if type(score) == list:
+            for m, s in zip(method, scores):
+                final_scores[m] = np.asarray(s)
+                assert len(s) == len(cand)
+        else:
+            final_scores[method] = np.asarray(scores)
+            assert len(scores) == len(cand)
+    return final_scores['CIDEr'] + 2.5 * final_scores['ROUGE_L'] + 1. / 0.7 * final_scores['Bleu_4'] \
+        + final_scores['Bleu_3'] + 0.7 * final_scores['Bleu_2'] + 0.7 ** 2 * final_scores['Bleu_1']
 
 
 def evaluate(data_path='./data', split='val', get_scores=False):
@@ -148,6 +162,7 @@ def evaluate(data_path='./data', split='val', get_scores=False):
         caption = ''.join(caption.split(' ')).strip().replace('.', '')
         caption = jieba.cut(caption.encode('utf-8'), cut_all=False)
         caption = ' '.join(caption)
+        caption = unicode(caption.encode('utf-8'), 'utf-8')
         hypo[i] = [{'caption': caption}]
 
     # compute bleu score

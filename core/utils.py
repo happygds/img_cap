@@ -22,6 +22,7 @@ def load_coco_data(data_path='./data', split='train'):
         data['features'] = np.random.randint(10, size=233)
     else:
         data['features'] = h5py.File(os.path.join(data_path, '%s.features.h5' % split), 'r')
+        data['bufeatures'] = h5py.File(os.path.join(data_path, '%s.bufeatures.h5' % split), 'r')
 
     with open(os.path.join(data_path, '%s.file.names.pkl' % split), 'rb') as f:
         data['file_names'] = pickle.load(f)
@@ -153,6 +154,9 @@ def write_bleu(scores, path, epoch, val_loss=None):
         f.write('Meteor: %f\n' % scores['METEOR'])
         f.write('ROUGE_L: %f\n' % scores['ROUGE_L'])
         f.write('CIDEr: %f\n\n' % scores['CIDEr'])
+        f.write("metric " + str(2. * scores['Bleu_4'] + scores['CIDEr'] +
+                                5. * scores['ROUGE_L'] + 10. * scores['METEOR']))
+        f.write('\n\n')
         if val_loss is not None:
             f.write('val_loss: %f\n\n' % val_loss)
 

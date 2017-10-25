@@ -319,7 +319,7 @@ class CaptionGenerator(object):
         return alphas, betas, sampled_captions, loss_out
 
 
-def build_beamsearch(self):
+    def build_beamsearch(self):
 
         features_ori = self.features
         # caluculate initial c, h np_value
@@ -344,7 +344,7 @@ def build_beamsearch(self):
         softmax = tf.nn.softmax(logits, dim=-1, name=None)
         return [features_ori, init_c_s, init_h_s, init_c, init_h, sampled_word, c, h, softmax]
 
-def beamsearch_sampler(self, var_list, init_feat, sess, max_len=20, k=2):
+    def beamsearch_sampler(self, var_list, init_feat, sess, max_len=20, k=2):
 
         # batch normalize feature vectors
 

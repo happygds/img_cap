@@ -15,6 +15,9 @@ from multiprocessing.dummy import Pool as ThreadPool
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
+split_num = 7
+split_count = 210000 // split_num
+assert 210000 % split_num == 0
 
 
 def names2data(features, names):
@@ -146,8 +149,8 @@ class CaptioningSolver(object):
             curr_loss = 0
             start_t = time.time()
 
-            for e in range(self.n_epochs):
-                rand_idxs = np.random.permutation(n_examples)[:(n_iters_per_epoch * self.batch_size)]
+            for e in range(11, self.n_epochs):
+                rand_idxs = np.random.permutation(n_examples)
                 captions = captions[rand_idxs]
                 image_idxs = image_idxs[rand_idxs]
                 image_names = np.asarray(image_names[image_idxs])
@@ -157,16 +160,16 @@ class CaptioningSolver(object):
                 n_iters_list = [0]
                 image_idxs_list_tmp = []
                 captions_list_tmp = []
-                for s in range(7):
+                for s in range(split_num):
                     image_idxs_split = image_idxs[np.where(np.logical_and(
-                        image_idxs >= s * 30000, image_idxs < (s + 1) * 30000))]
+                        image_idxs >= s * split_count, image_idxs < (s + 1) * split_count))]
                     captions_split = captions[np.where(np.logical_and(
-                        image_idxs >= s * 30000, image_idxs < (s + 1) * 30000))]
+                        image_idxs >= s * split_count, image_idxs < (s + 1) * split_count))]
 
                     image_idxs_list_tmp.append(image_idxs_split)
                     captions_list_tmp.append(captions_split)
                 # random shuffle
-                inds_list = range(7)
+                inds_list = range(split_num)
                 random.shuffle(inds_list)
                 image_idxs_list = [image_idxs_list_tmp[x] for x in inds_list]
                 captions_list = [captions_list_tmp[x] for x in inds_list]
@@ -174,7 +177,7 @@ class CaptioningSolver(object):
 
                 n_iters_list = [0] + [len(x) // self.batch_size for x in image_idxs_list]
                 n_iters_list = np.cumsum(np.asarray(n_iters_list))[:-1]
-                assert len(n_iters_list) == 7
+                assert len(n_iters_list) == split_num
                 print('iter_list is {}').format(n_iters_list)
 
                 for i in range(n_iters_per_epoch):
@@ -184,7 +187,8 @@ class CaptioningSolver(object):
                         s_num = np.where(n_iters_list == i)[0][0]
                         features_split = None
                         print('read split {} features'.format(split))
-                        with h5py.File('./data/train/train_split{}.features.h5'.format(split), 'r') as f_tmp:
+                        with h5py.File('./data/train/split{}/train_split{}.features.h5'.format(
+                                split_num, split), 'r') as f_tmp:
                             features_split = f_tmp['features'][:]
                         captions_split = captions_list[s_num]
                         image_idxs_split = image_idxs_list[s_num]
@@ -197,7 +201,7 @@ class CaptioningSolver(object):
                     captions_batch = np.array(captions_split[tmp_i * self.batch_size:(tmp_i + 1) * self.batch_size])
                     image_idxs_batch = np.array(image_idxs_split[tmp_i * self.batch_size:(tmp_i + 1) * self.batch_size])
 
-                    features_batch = features_split[image_idxs_batch - split * 30000]
+                    features_batch = features_split[image_idxs_batch - split * split_count]
                     assert features_batch.shape[2] == 1536, 'dimension of visual features should be (11*11, 1536)'
 
                     feed_dict = {self.model.features: features_batch, self.model.captions: captions_batch,
@@ -211,8 +215,8 @@ class CaptioningSolver(object):
                         summary = sess.run(summary_op, feed_dict)
                         summary_writer.add_summary(summary, e * n_iters_per_epoch + i)
 
-                    if (i + 1) % self.print_every == 0:
-                        print "\nTrain loss at epoch %d & iteration %d (mini-batch): %.5f" % (e + 1, i + 1, l)
+                    if i % self.print_every == 0 and i > 0:
+                        print "\nTrain loss at epoch %d & iteration %d (mini-batch): %.5f" % (e + 1, i, l)
                         ground_truths = captions_split[image_idxs_split == image_idxs_batch[0]]
                         decoded = decode_captions(ground_truths, self.model.idx_to_word)
                         for j, gt in enumerate(decoded):

@@ -19,7 +19,7 @@ def save_pickle(data, path):
         print ('Saved %s..' % path)
 
 
-split_list = ['train', 'val']
+split_list = ['val']
 
 for split in split_list:
     base_path = '/media/dl/expand/'
@@ -53,12 +53,14 @@ for split in split_list:
         if sample['image_id'] in fnames:
             file_name = sample['image_id'][:-4]
             file_hash = int(int(hashlib.sha256(file_name).hexdigest(), 16) % sys.maxint)
+            # if len(sample['caption']) > 0:
             for _, cap in enumerate(sample['caption']):
                 # text = thu1.cut(cap.encode('utf-8'), text=True)
                 # cap_list = unicode(text, 'utf-8')
                 cap_list = jieba.cut(cap, cut_all=False)
                 cut_cap = ' '.join(cap_list)
                 info_list.append([file_name, file_hash, count_id, cut_cap])
+                count_id += 1
 
     # convert the information into a dict
     base_dict['annotations'] = []
