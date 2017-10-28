@@ -540,9 +540,9 @@ class C2FTopDownCore(nn.Module):
         self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # we, fc, h^2_t-1
         self.finelang_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # h^1_t, \hat v
         self.finallang_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)
-        self.proj_ctx_coarse = nn.Linear(opt.input_encoding_size, opt.rnn_size)
-        self.proj_ctx = nn.Linear(opt.input_encoding_size, opt.rnn_size)
-        self.proj_ctx_final = nn.Linear(opt.input_encoding_size, opt.rnn_size)
+        # self.proj_ctx_coarse = nn.Linear(opt.input_encoding_size, opt.rnn_size)
+        # self.proj_ctx = nn.Linear(opt.input_encoding_size, opt.rnn_size)
+        # self.proj_ctx_final = nn.Linear(opt.input_encoding_size, opt.rnn_size)
         self.attention_fine = Attention(opt)
         self.attention_final = Attention(opt)
 
@@ -552,8 +552,8 @@ class C2FTopDownCore(nn.Module):
 
         h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
 
-        output_att = h_att + fc_feats
-        output_att += self.proj_ctx_coarse(xt_coarse)
+        output_att = c_att
+        # output_att = output_att + self.proj_ctx_coarse(xt_coarse) + fc_feats
         output_att = F.dropout(output_att, self.drop_prob_lm, self.training)
 
         att_fine = self.attention_fine(h_att, att_feats, p_att_feats)
@@ -562,16 +562,16 @@ class C2FTopDownCore(nn.Module):
         # lang_lstm_input = torch.cat([att, F.dropout(h_att, self.drop_prob_lm, self.training)], 1) ?????
 
         h_lang_fine, c_lang_fine = self.finelang_lstm(finelang_lstm_input, (state[0][1], state[1][1]))
-        output_fine = h_lang_fine + att_fine
-        output_fine += self.proj_ctx(xt_fine)
+        output_fine = c_lang_fine
+        # output_fine = output_att + self.proj_ctx(xt_fine) + att_fine
         output_fine = F.dropout(output_fine, self.drop_prob_lm, self.training)
 
         att_final = self.attention_final(h_lang_fine + att_fine, att_feats, p_att_feats_final)
         finallang_lstm_input = torch.cat([att_final, h_lang_fine, xt], 1)
 
         h_lang_final, c_lang_final = self.finallang_lstm(finallang_lstm_input, (state[0][2], state[1][2]))
-        output_final = h_lang_final + att_final
-        output_final += self.proj_ctx_final(xt)
+        output_final = c_lang_final
+        # output_final = output_final + self.proj_ctx_final(xt) + att_final
         output_final = F.dropout(output_final, self.drop_prob_lm, self.training)
 
         state = (torch.stack([h_att, h_lang_fine, h_lang_final]), torch.stack([c_att, c_lang_fine, c_lang_final]))
