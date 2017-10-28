@@ -16,7 +16,7 @@ import multiprocessing
 
 def get_npy_data(ix, fc_file, att_file, use_att):
     if use_att == True:
-        tmp = np.load(att_file)['feat']
+        tmp = np.load(att_file)['feat'][:36]
         return (tmp.mean(0), tmp, ix)
     else:
         return (np.zeros((1,)), np.zeros((1, 1, 1)), ix)
@@ -166,23 +166,23 @@ class DataLoader(data.Dataset):
             info_dict['id'] = self.info['images'][ix]['id']
             info_dict['file_path'] = self.info['images'][ix]['file_path']
             infos.append(info_dict)
-            #print(i, time.time() - t_start)
+            # print(i, time.time() - t_start)
 
         # generate mask
         t_start = time.time()
         nonzeros = np.array(list(map(lambda x: (x != 0).sum() + 2, label_batch)))
         for ix, row in enumerate(mask_batch):
-            row[:nonzeros[ix]] = 1
-        #print('mask', time.time() - t_start)
+            row[:nonzeros[ix]]=1
+        # print('mask', time.time() - t_start)
 
-        data = {}
-        data['fc_feats'] = np.stack(fc_batch).astype('float32')
-        data['att_feats'] = np.stack(att_batch).astype('float32')
-        data['labels'] = label_batch.astype('int')
-        data['gts'] = gts
-        data['masks'] = mask_batch.astype('float32')
-        data['bounds'] = {'it_pos_now': self.iterators[split], 'it_max': len(self.split_ix[split]), 'wrapped': wrapped}
-        data['infos'] = infos
+        data={}
+        data['fc_feats']=np.stack(fc_batch).astype('float32')
+        data['att_feats']=np.stack(att_batch).astype('float32')
+        data['labels']=label_batch.astype('int')
+        data['gts']=gts
+        data['masks']=mask_batch.astype('float32')
+        data['bounds']={'it_pos_now': self.iterators[split], 'it_max': len(self.split_ix[split]), 'wrapped': wrapped}
+        data['infos']=infos
 
         return data
 
@@ -192,7 +192,7 @@ class DataLoader(data.Dataset):
     def __getitem__(self, index):
         """This function returns a tuple that is further passed to collate_fn
         """
-        ix = index  # self.split_ix[index]
+        ix=index  # self.split_ix[index]
         return get_npy_data(ix,
                             os.path.join(self.input_fc_dir, str(self.info['images'][ix]['id']) + '.npy'),
                             os.path.join(self.input_att_dir, str(self.info['images'][ix]['id']) + '.npz'),
@@ -210,9 +210,9 @@ class BlobFetcher():
         """
         db is a list of tuples containing: imcrop_name, caption, bbox_feat of gt box, imname
         """
-        self.split = split
-        self.dataloader = dataloader
-        self.if_shuffle = if_shuffle
+        self.split=split
+        self.dataloader=dataloader
+        self.if_shuffle=if_shuffle
 
     # Add more in the queue
     def reset(self):
@@ -222,7 +222,7 @@ class BlobFetcher():
         2. wrapped: a new epoch, the split_ix and iterator have been updated in the get_minibatch_inds already.
         """
         # batch_size is 0, the merge is done in DataLoader class
-        self.split_loader = iter(data.DataLoader(dataset=self.dataloader,
+        self.split_loader=iter(data.DataLoader(dataset=self.dataloader,
                                                  batch_size=1,
                                                  sampler=self.dataloader.split_ix[self.split][self.dataloader.iterators[self.split]:],
                                                  shuffle=False,
@@ -231,19 +231,19 @@ class BlobFetcher():
                                                  collate_fn=lambda x: x[0]))
 
     def _get_next_minibatch_inds(self):
-        max_index = len(self.dataloader.split_ix[self.split])
-        wrapped = False
+        max_index=len(self.dataloader.split_ix[self.split])
+        wrapped=False
 
-        ri = self.dataloader.iterators[self.split]
-        ix = self.dataloader.split_ix[self.split][ri]
+        ri=self.dataloader.iterators[self.split]
+        ix=self.dataloader.split_ix[self.split][ri]
 
-        ri_next = ri + 1
+        ri_next=ri + 1
         if ri_next >= max_index:
-            ri_next = 0
+            ri_next=0
             if self.if_shuffle:
                 random.shuffle(self.dataloader.split_ix[self.split])
-            wrapped = True
-        self.dataloader.iterators[self.split] = ri_next
+            wrapped=True
+        self.dataloader.iterators[self.split]=ri_next
 
         return ix, wrapped
 
@@ -251,8 +251,8 @@ class BlobFetcher():
         if not hasattr(self, 'split_loader'):
             self.reset()
 
-        ix, wrapped = self._get_next_minibatch_inds()
-        tmp = self.split_loader.next()
+        ix, wrapped=self._get_next_minibatch_inds()
+        tmp=self.split_loader.next()
         if wrapped:
             self.reset()
 

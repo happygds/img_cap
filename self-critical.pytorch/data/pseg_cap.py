@@ -39,5 +39,11 @@ def prepro_cap(jsonfile):
 
 
 if __name__ == '__main__':
-    flags = prepro_cap('./caption_train_annotations_20170902.json')
-    pickle.dump(flags, file('./flags.pkl', 'w'))
+    # flags = prepro_cap('./caption_train_annotations_20170902.json')
+    # pickle.dump(flags, file('./flags.pkl', 'w'))
+    flags = pickle.load(file('./flags.pkl', 'r'))
+    for key, item in flags.iteritems():
+        data = item.most_common(10)
+        print('the word flag {} '.format(key))
+        for d in data:
+            print('word {} occurred {} times'.format(d[0], d[1]))

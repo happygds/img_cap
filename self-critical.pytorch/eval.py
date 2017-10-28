@@ -20,13 +20,13 @@ import torch
 
 # Input arguments and options
 parser = argparse.ArgumentParser()
-modelnum = 69
+modelnum = 2
 # Input paths
-parser.add_argument('--model', type=str, default='save/rl_c2f_att/model-%d.pth' % modelnum,
+parser.add_argument('--model', type=str, default='save/c2f_coarse/model-%d.pth' % modelnum,
                     help='path to model to evaluate')
 parser.add_argument('--cnn_model', type=str, default='resnet101',
                     help='resnet101, resnet152')
-parser.add_argument('--infos_path', type=str, default='save/rl_c2f_att/infos_%d.pkl' % modelnum,
+parser.add_argument('--infos_path', type=str, default='save/c2f_coarse/infos_%d.pkl' % modelnum,
                     help='path to infos to evaluate')
 # Basic options
 parser.add_argument('--batch_size', type=int, default=0,
@@ -45,7 +45,7 @@ parser.add_argument('--dump_path', type=int, default=0,
 # Sampling options
 parser.add_argument('--sample_max', type=int, default=1,
                     help='1 = sample argmax words. 0 = sample from distributions.')
-parser.add_argument('--beam_size', type=int, default=10,
+parser.add_argument('--beam_size', type=int, default=1,
                     help='used when sample_max = 1, indicates number of beams in beam search. Usually 2 or 3 works well. More is not better. Set this to 1 for faster runtime but a bit worse performance.')
 parser.add_argument('--temperature', type=float, default=1.0,
                     help='temperature when sampling from distributions (i.e. when sample_max = 0). Lower = "safer" predictions.')
@@ -63,7 +63,7 @@ parser.add_argument('--input_label_h5', type=str, default='data/aitalk_label.h5'
                     help='path to the h5file containing the preprocessed dataset')
 parser.add_argument('--input_json', type=str, default='data/aitalk.json',
                     help='path to the json file containing additional info and vocab. empty = fetch from model checkpoint.')
-parser.add_argument('--split', type=str, default='test',
+parser.add_argument('--split', type=str, default='val',
                     help='if running on MSCOCO images, which split to use: val|test|train')
 parser.add_argument('--coco_json', type=str, default='',
                     help='if nonempty then use this file in DataLoaderRaw (see docs there). Used only in MSCOCO test evaluation, where we have a specific json file of only test set images.')

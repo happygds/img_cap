@@ -54,9 +54,9 @@ def language_eval(dataset, preds, model_id, split):
 
     encoder.FLOAT_REPR = lambda o: format(o, '.3f')
 
-    if not os.path.isdir('./eval_results'):
-        os.mkdir('./eval_results')
-    cache_path = os.path.join('./eval_results/', model_id + '_' + split + '.json')
+    if not os.path.isdir('./eval_results_mix'):
+        os.mkdir('./eval_results_mix')
+    cache_path = os.path.join('./eval_results_mix/', model_id + '_' + split + '.json')
 
     # coco = COCO(annFile)
     # valids = coco.getImgIds()
@@ -137,7 +137,7 @@ def eval_split(model, crit, loader, eval_kwargs={}, model_id=None):
         fc_feats, att_feats = tmp
         # forward the model to also get generated samples for each image
         if caption_model == 'c2ftopdown':
-            seq, _, seq_fine, _ = model.sample(fc_feats, att_feats, eval_kwargs)
+            seq, _, seq_fine, _, _, _ = model.sample(fc_feats, att_feats, eval_kwargs)
         else:
             seq, _ = model.sample(fc_feats, att_feats, eval_kwargs)
 
@@ -188,14 +188,14 @@ def eval_split(model, crit, loader, eval_kwargs={}, model_id=None):
     for i, pred in enumerate(predictions):
         name = idx2names[pred['image_id']]
         cap = ''.join(pred['caption'].split(' ')).replace(' ', '')
-        predictions[i]['image_id'] = name[:-4]
+        predictions[i]['image_id'] = name.split('.')[0]
         predictions[i]['caption'] = cap
 
     if caption_model == 'c2ftopdown':
         for i, pred in enumerate(predictions_fine):
             name = idx2names[pred['image_id']]
             cap = ''.join(pred['caption'].split(' ')).replace(' ', '')
-            predictions_fine[i]['image_id'] = name[:-4]
+            predictions_fine[i]['image_id'] = name.split('.')[0]
             predictions_fine[i]['caption'] = cap
 
     if lang_eval == 1:

@@ -95,8 +95,8 @@ def array_to_str(arr):
     #     out += str(arr[i]) + ' '
 
     # # if doesnot have un-recognized word, use the jieba cut results
-    if '0' not in out_jieba:
-        out = ' '.join(out_jieba)
+    # if '0' not in out_jieba:
+    out = ' '.join(out_jieba)
 
     if len(out) == 0:
         out = '0'
@@ -118,9 +118,9 @@ def get_self_critical_reward(model, fc_feats, att_feats, data, gen_result, only_
     gen_result = gen_result.cpu().numpy()
     greedy_res = greedy_res.cpu().numpy()
     for i in range(batch_size):
-        res[i] = [array_to_str(gen_result[i])]
+        res[i] = [array_to_str(gen_result[i])[0]]
     for i in range(batch_size):
-        res[batch_size + i] = [array_to_str(greedy_res[i])]
+        res[batch_size + i] = [array_to_str(greedy_res[i])[0]]
 
     gts = OrderedDict()
     for i in range(len(data['gts'])):
@@ -150,22 +150,26 @@ def get_self_critical_reward(model, fc_feats, att_feats, data, gen_result, only_
     return rewards
 
 
-def c2f_get_self_critical_reward(model, fc_feats, att_feats, data, gen_result, gen_result_fine, only_cider=True):
+def c2f_get_self_critical_reward(model, fc_feats, att_feats, data,
+                                 gen_result, gen_result_fine, gen_result_coarse,
+                                 only_cider=True):
     batch_size = gen_result.size(0)  # batch_size = sample_size * seq_per_img
     seq_per_img = batch_size // len(data['gts'])
 
     # get greedy decoding baseline
-    greedy_res, _, greedy_res_fine, _ = model.sample(
+    greedy_res, _, greedy_res_fine, _, greedy_res_coarse, _ = model.sample(
         Variable(fc_feats.data, volatile=True), Variable(att_feats.data, volatile=True))
 
     res = OrderedDict()
 
     gen_result = gen_result.cpu().numpy()
     greedy_res = greedy_res.cpu().numpy()
-    gen_result_fine = gen_result_fine.cpu().numpy()
-    greedy_res_fine = greedy_res_fine.cpu().numpy()
+    # gen_result_fine = gen_result_fine.cpu().numpy()
+    # greedy_res_fine = greedy_res_fine.cpu().numpy()
+    # gen_result_coarse = gen_result_coarse.cpu().numpy()
+    # greedy_res_coarse = greedy_res_coarse.cpu().numpy()
 
-    res_discount = np.zeros((4 * batch_size,), dtype='float32')
+    res_discount = np.zeros((6 * batch_size,), dtype='float32')
 
     for i in range(batch_size):
         tmp1, tmp2 = array_to_str(gen_result[i])
@@ -174,35 +178,45 @@ def c2f_get_self_critical_reward(model, fc_feats, att_feats, data, gen_result, g
         tmp1, tmp2 = array_to_str(greedy_res[i])
         res[batch_size + i] = [tmp1]
         res_discount[batch_size + i] = tmp2
-        tmp1, tmp2 = array_to_str(gen_result_fine[i])
-        res[2 * batch_size + i] = [tmp1]
-        res_discount[2 * batch_size + i] = tmp2
-        tmp1, tmp2 = array_to_str(greedy_res_fine[i])
-        res[3 * batch_size + i] = [tmp1]
-        res_discount[3 * batch_size + i] = tmp2
 
-        # res[2 * batch_size + i] = [array_to_str(gen_result_fine[i])]
-        # res[3 * batch_size + i] = [array_to_str(greedy_res_fine[i])]
+        # tmp1, tmp2 = array_to_str(gen_result_fine[i])
+        # res[2 * batch_size + i] = [tmp1]
+        # res_discount[2 * batch_size + i] = tmp2
+        # tmp1, tmp2 = array_to_str(greedy_res_fine[i])
+        # res[3 * batch_size + i] = [tmp1]
+        # res_discount[3 * batch_size + i] = tmp2
+
+        # tmp1, tmp2 = array_to_str(gen_result_coarse[i])
+        # res[4 * batch_size + i] = [tmp1]
+        # res_discount[4 * batch_size + i] = tmp2
+        # tmp1, tmp2 = array_to_str(greedy_res_coarse[i])
+        # res[5 * batch_size + i] = [tmp1]
+        # res_discount[5 * batch_size + i] = tmp2
 
     gts = OrderedDict()
     for i in range(len(data['gts'])):
         gts[i] = [array_to_str(data['gts'][i][j])[0] for j in range(len(data['gts'][i]))]
 
-    res = {i: res[i] for i in range(4 * batch_size)}
-    gts = {i: gts[i % batch_size // seq_per_img] for i in range(4 * batch_size)}
+    res = {i: res[i] for i in range(2 * batch_size)}
+    gts = {i: gts[i % batch_size // seq_per_img] for i in range(2 * batch_size)}
     if only_cider:
         _, scores = CiderD_scorer.compute_score(gts, res)
     else:
         scores = evaluate_captions_mix(gts, res)
-    scores *= res_discount
+    # scores *= res_discount
     print('Metric scores:', scores.mean())
 
     scores_final = scores[:batch_size] - scores[batch_size: 2 * batch_size]
-    # scores_final = scores[:batch_size] - \
-    #     np.maximum(scores[batch_size: 2 * batch_size], scores[2 * batch_size: 3 * batch_size])
-    scores_fine = scores[2 * batch_size: 3 * batch_size] - scores[3 * batch_size: 4 * batch_size]
+    # # scores_final = scores[:batch_size] - \
+    # #     np.maximum(scores[batch_size: 2 * batch_size], scores[2 * batch_size: 3 * batch_size])
+    # scores_fine = scores[2 * batch_size: 3 * batch_size] - scores[3 * batch_size: 4 * batch_size]
+    # scores_coarse = scores[4 * batch_size: 5 * batch_size] - scores[5 * batch_size: 6 * batch_size]
 
     rewards = np.repeat(scores_final[:, np.newaxis], gen_result.shape[1], 1)
-    rewards_fine = np.repeat(scores_fine[:, np.newaxis], gen_result_fine.shape[1], 1)
+    # rewards_fine = np.repeat(scores_fine[:, np.newaxis], gen_result_fine.shape[1], 1)
+    # rewards_coarse = np.repeat(scores_coarse[:, np.newaxis], gen_result_coarse.shape[1], 1)
 
-    return rewards, rewards_fine
+    rewards_fine = 0. * rewards
+    rewards_fine = 0. * rewards
+
+    return rewards, rewards_fine, rewards_coarse

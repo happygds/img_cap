@@ -89,6 +89,7 @@ def train(opt):
     rl_crit = utils.RewardCriterion()
 
     optimizer = optim.Adam(model.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay)
+    # optimizer = optim.Adamax(model.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay)
 
     # Load the optimizer
     if vars(opt).get('start_from', None) is not None and os.path.isfile(os.path.join(opt.start_from, "optimizer.pth")):
@@ -137,15 +138,17 @@ def train(opt):
             loss = crit(model(fc_feats, att_feats, labels), labels[:, 1:], masks[:, 1:])
         else:
             if opt.caption_model == 'c2ftopdown':
-                gen_result, sample_logprobs, gen_result_fine, sample_logprobs_fine = model.sample(
+                gen_result, sample_logprobs, gen_result_fine, sample_logprobs_fine, gen_result_coarse, sample_logprobs_coarse = model.sample(
                     fc_feats, att_feats, {'sample_max': 0, 'temperature': opt.temperature})
 
-                reward, reward_fine = c2f_get_self_critical_reward(
-                    model, fc_feats, att_feats, data, gen_result, gen_result_fine, only_cider=opt.only_cider)
+                reward, reward_fine, reward_coarse = c2f_get_self_critical_reward(
+                    model, fc_feats, att_feats, data, gen_result, gen_result_fine, gen_result_coarse, only_cider=opt.only_cider)
                 loss = rl_crit(sample_logprobs, gen_result, Variable(
                     torch.from_numpy(reward).float().cuda(), requires_grad=False))
                 loss += rl_crit(sample_logprobs_fine, gen_result_fine, Variable(
                     torch.from_numpy(reward_fine).float().cuda(), requires_grad=False))
+                loss += rl_crit(sample_logprobs_coarse, gen_result_coarse, Variable(
+                    torch.from_numpy(reward_coarse).float().cuda(), requires_grad=False))
             else:
                 gen_result, sample_logprobs = model.sample(
                     fc_feats, att_feats, {'sample_max': 0, 'temperature': opt.temperature})

@@ -74,10 +74,11 @@ class LanguageModelCriterion(nn.Module):
         mask = to_contiguous(mask).view(-1, 1)
         output = input.gather(1, target) * mask
         # print(torch.pow((1. - torch.exp(output)), 1).float())
-        output = output * torch.pow((1. - torch.exp(output)), self.gamma)
+        # output = output * torch.pow((1. - torch.exp(output)), self.gamma)
         output = - torch.sum(output) / torch.sum(mask)
 
         return output
+
 
 class c2fLanguageModelCriterion(nn.Module):
     def __init__(self, gamma=0):
@@ -85,32 +86,46 @@ class c2fLanguageModelCriterion(nn.Module):
         super(c2fLanguageModelCriterion, self).__init__()
 
     def forward(self, input, target, mask):
-        input_fine = input[0]
-        input_final = input[1]
+        input_coarse = input[0]
+        input_fine = input[1]
+        input_final = input[2]
+
+        target_coarse = target[:, :input_coarse.size(1)]
+        mask_coarse = mask[:, :input_coarse.size(1)]
+        input_coarse = to_contiguous(input_coarse).view(-1, input_coarse.size(2))
+        target_coarse = to_contiguous(target_coarse).view(-1, 1)
+        mask_coarse = to_contiguous(mask_coarse).view(-1, 1)
+        output_coarse = input_coarse.gather(1, target_coarse) * mask_coarse
+        # tmp_coarse = torch.pow(torch.clamp(1. - torch.exp(output_coarse), 1e-16, 1.), self.gamma)
+        # # print(tmp.float())
+        # output_coarse = output_coarse * tmp_coarse * mask_coarse
+        # (torch.sum(tmp_coarse * mask_coarse) / torch.sum(mask_coarse))
+        output_coarse = - torch.sum(output_coarse) / torch.sum(mask_coarse)
+
         # truncate to the same size
         target_fine = target[:, :input_fine.size(1)]
         mask_fine = mask[:, :input_fine.size(1)]
         input_fine = to_contiguous(input_fine).view(-1, input_fine.size(2))
         target_fine = to_contiguous(target_fine).view(-1, 1)
         mask_fine = to_contiguous(mask_fine).view(-1, 1)
-        output_fine = input_fine.gather(1, target_fine)
-        tmp_fine = torch.pow(torch.clamp(1. - torch.exp(output_fine), 1e-16, 1.), self.gamma)
-        # print(tmp.float())
-        output_fine = output_fine * tmp_fine * mask_fine / (torch.sum(tmp_fine * mask_fine) / torch.sum(mask_fine))
-        output_fine = - torch.sum(output_fine * mask_fine) / torch.sum(mask_fine)
+        output_fine = input_fine.gather(1, target_fine) * mask_fine
+        # tmp_fine = torch.pow(torch.clamp(1. - torch.exp(output_fine), 1e-16, 1.), self.gamma)
+        # # print(tmp.float())
+        # output_fine = output_fine * tmp_fine * mask_fine
+        output_fine = - torch.sum(output_fine) / torch.sum(mask_fine)
 
         target_final = target[:, :input_final.size(1)]
         mask_final = mask[:, :input_final.size(1)]
         input_final = to_contiguous(input_final).view(-1, input_final.size(2))
         target_final = to_contiguous(target_final).view(-1, 1)
         mask_final = to_contiguous(mask_final).view(-1, 1)
-        output_final = input_final.gather(1, target_final)
-        tmp_final = torch.pow(torch.clamp(1. - torch.exp(output_final), 1e-16, 1.), self.gamma)
-        # print(tmp.float())
-        output_final = output_final * tmp_final * mask_final / (torch.sum(tmp_final * mask_final) / torch.sum(mask_final))
-        output_final = - torch.sum(output_final * mask_final) / torch.sum(mask_final)
+        output_final = input_final.gather(1, target_final) * mask_final
+        # tmp_final = torch.pow(torch.clamp(1. - torch.exp(output_final), 1e-16, 1.), self.gamma)
+        # # print(tmp_final.float())
+        # output_final = output_final * tmp_final * mask_final
+        output_final = - torch.sum(output_final) / torch.sum(mask_final)
 
-        return output_fine + output_final
+        return output_fine + output_final + output_coarse
 
 
 def set_lr(optimizer, lr):

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=tftrain
+#SBATCH --job-name=adamax
 #SBATCH --partition=p100
 #SBATCH -n 1
 #SBATCH --gres=gpu:1
@@ -8,7 +8,7 @@
 #SBATCH --mail-user=YOU@MAIL.COM
 #SBATCH --output=tfout_mix.out
 #SBATCH --error=tferr_mix.err
-#SBATCH --time=16:00:00
+#SBATCH --time=66:00:00
 
 source /usr/share/Modules/init/bash
 unset MODULEPATH
