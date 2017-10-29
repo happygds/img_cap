@@ -38,6 +38,8 @@ def setup(opt):
     # Course to fine Top-down attention model
     elif opt.caption_model == 'c2ftopdown':
         model = C2FTopDownModel(opt)
+    elif opt.caption_model == 'SCAtopdown':
+        model = SCATopDownModel(opt)
     else:
         raise Exception("Caption model not supported: {}".format(opt.caption_model))
 

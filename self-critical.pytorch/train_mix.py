@@ -145,9 +145,9 @@ def train(opt):
                     model, fc_feats, att_feats, data, gen_result, gen_result_fine, gen_result_coarse, only_cider=opt.only_cider)
                 loss = rl_crit(sample_logprobs, gen_result, Variable(
                     torch.from_numpy(reward).float().cuda(), requires_grad=False))
-                loss += rl_crit(sample_logprobs_fine, gen_result_fine, Variable(
+                loss += 0. * rl_crit(sample_logprobs_fine, gen_result_fine, Variable(
                     torch.from_numpy(reward_fine).float().cuda(), requires_grad=False))
-                loss += rl_crit(sample_logprobs_coarse, gen_result_coarse, Variable(
+                loss += 0. * rl_crit(sample_logprobs_coarse, gen_result_coarse, Variable(
                     torch.from_numpy(reward_coarse).float().cuda(), requires_grad=False))
             else:
                 gen_result, sample_logprobs = model.sample(
@@ -212,7 +212,6 @@ def train(opt):
                     add_summary_value(tf_summary_writer, k, v, iteration)
                 tf_summary_writer.flush()
             val_result_history[iteration] = {'loss': val_loss, 'lang_stats': lang_stats, 'predictions': predictions}
-
 
             with open(os.path.join(opt.checkpoint_path, 'val.RandB.scores.txt'), 'a+') as f:
                 f.write('\n')

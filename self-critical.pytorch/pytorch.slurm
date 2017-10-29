@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=adamax
+#SBATCH --job-name=SCA
 #SBATCH --partition=p100
 #SBATCH -n 1
 #SBATCH --gres=gpu:1

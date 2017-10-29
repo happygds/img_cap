@@ -213,7 +213,6 @@ def train(opt):
                 tf_summary_writer.flush()
             val_result_history[iteration] = {'loss': val_loss, 'lang_stats': lang_stats, 'predictions': predictions}
 
-
             with open(os.path.join(opt.checkpoint_path, 'val.RandB.scores.txt'), 'a+') as f:
                 f.write('\n')
                 f.write("Model {}:".format(model_id))

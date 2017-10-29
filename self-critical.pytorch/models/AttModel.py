@@ -29,7 +29,7 @@ class AttModel(CaptionModel):
         super(AttModel, self).__init__()
         self.vocab_size = opt.vocab_size
         self.input_encoding_size = opt.input_encoding_size
-        #self.rnn_type = opt.rnn_type
+        # self.rnn_type = opt.rnn_type
         self.rnn_size = opt.rnn_size
         self.num_layers = opt.num_layers
         self.drop_prob_lm = opt.drop_prob_lm
@@ -38,20 +38,20 @@ class AttModel(CaptionModel):
         self.att_feat_size = opt.att_feat_size
         self.att_hid_size = opt.att_hid_size
 
-        self.ss_prob = 0.0 # Schedule sampling probability
+        self.ss_prob = 0.0  # Schedule sampling probability
 
         self.embed = nn.Sequential(nn.Embedding(self.vocab_size + 1, self.input_encoding_size),
-                                nn.ReLU(),
-                                nn.Dropout(self.drop_prob_lm))
-        self.fc_embed = nn.Sequential(nn.Linear(self.fc_feat_size, self.rnn_size),
-                                    nn.ReLU(),
-                                    nn.Dropout(self.drop_prob_lm))
-        self.att_embed = nn.Sequential(nn.Linear(self.att_feat_size, self.rnn_size),
-                                    nn.ReLU(),
-                                    nn.Dropout(self.drop_prob_lm))
-        self.logit = nn.Linear(self.rnn_size, self.vocab_size + 1)
-        self.ctx2att = nn.Linear(self.rnn_size, self.att_hid_size)
+                                   nn.ReLU(),
+                                   nn.Dropout(self.drop_prob_lm))
 
+        if type(self) == SCATopDownModel:
+            self.ctx2att_ch = nn.Linear(1, self.att_hid_size)
+        else:
+            self.ctx2att = nn.Linear(self.rnn_size, self.att_hid_size)
+            self.att_embed = nn.Sequential(nn.Linear(self.att_feat_size, self.rnn_size),
+                                           nn.ReLU(),
+                                           nn.Dropout(self.drop_prob_lm))
+        self.logit = nn.Linear(self.rnn_size, self.vocab_size + 1)
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
@@ -68,20 +68,24 @@ class AttModel(CaptionModel):
             outputs_final = []
             outputs_coarse = []
 
-        # embed fc and att feats
-        fc_feats = self.fc_embed(fc_feats)
-        _att_feats = self.att_embed(att_feats.view(-1, self.att_feat_size))
-        att_feats = _att_feats.view(*(att_feats.size()[:-1] + (self.rnn_size,)))
+        if type(self) == SCATopDownModel:
+            p_att_feats_ch = self.ctx2att_ch(fc_feats.view(-1, 1))
+            p_att_feats = p_att_feats_ch.view(*(att_feats.size()[:1] + (self.att_feat_size, self.att_hid_size)))
+        else:
+            # embed fc and att feats
+            _att_feats = self.att_embed(att_feats.view(-1, self.att_feat_size))
+            att_feats = _att_feats.view(*(att_feats.size()[:-1] + (self.rnn_size,)))
+            p_att_feats = self.ctx2att(att_feats.view(-1, self.rnn_size))
+            p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
+        fc_feats = att_feats.mean(1)
 
         # Project the attention feats first to reduce memory and computation comsumptions.
-        p_att_feats = self.ctx2att(att_feats.view(-1, self.rnn_size))
-        p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
         if type(self) == C2FTopDownModel:
             p_att_feats_final = self.ctx2att_final(att_feats.view(-1, self.rnn_size))
             p_att_feats_final = p_att_feats_final.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
 
         for i in range(seq.size(1) - 1):
-            if self.training and i >= 1 and self.ss_prob > 0.0: # otherwiste no need to sample
+            if self.training and i >= 1 and self.ss_prob > 0.0:  # otherwiste no need to sample
                 sample_prob = fc_feats.data.new(batch_size).uniform_(0, 1)
                 sample_mask = sample_prob < self.ss_prob
                 # if type(self) == C2FTopDownModel:
@@ -136,6 +140,7 @@ class AttModel(CaptionModel):
                 output, state = self.core(xt, fc_feats, att_feats, p_att_feats, state)
                 output = F.log_softmax(self.logit(output))
                 outputs.append(output)
+                outputs_final = outputs
         if type(self) == C2FTopDownModel:
             return [torch.cat([_.unsqueeze(1) for _ in outputs_coarse], 1), torch.cat([_.unsqueeze(1) for _ in outputs], 1), torch.cat([_.unsqueeze(1) for _ in outputs_final], 1)]
         else:
@@ -161,14 +166,19 @@ class AttModel(CaptionModel):
         beam_size = opt.get('beam_size', 10)
         batch_size = fc_feats.size(0)
 
-        # embed fc and att feats
-        fc_feats = self.fc_embed(fc_feats)
-        _att_feats = self.att_embed(att_feats.view(-1, self.att_feat_size))
-        att_feats = _att_feats.view(*(att_feats.size()[:-1] + (self.rnn_size,)))
-
         # Project the attention feats first to reduce memory and computation comsumptions.
-        p_att_feats = self.ctx2att(att_feats.view(-1, self.rnn_size))
-        p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
+        if type(self) == SCATopDownModel:
+            p_att_feats_ch = self.ctx2att_ch(fc_feats.view(-1, 1))
+            # p_att_feats_ch = self.ctx2att_ch(fc_feats.view(-1, 1))
+            p_att_feats = p_att_feats_ch.view(*(att_feats.size()[:1] + (self.att_feat_size, self.att_hid_size)))
+        else:
+            # embed fc and att feats
+            _att_feats = self.att_embed(att_feats.view(-1, self.att_feat_size))
+            att_feats = _att_feats.view(*(att_feats.size()[:-1] + (self.rnn_size,)))
+            p_att_feats = self.ctx2att(att_feats.view(-1, self.rnn_size))
+            p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
+        fc_feats = att_feats.mean(1)
+
         if type(self) == C2FTopDownModel:
             p_att_feats_final = self.ctx2att_final(att_feats.view(-1, self.rnn_size))
             p_att_feats_final = p_att_feats_final.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
@@ -181,14 +191,14 @@ class AttModel(CaptionModel):
         self.done_beams = [[] for _ in range(batch_size)]
         for k in range(batch_size):
             state = self.init_hidden(beam_size)
-            tmp_fc_feats = fc_feats[k:k+1].expand(beam_size, fc_feats.size(1))
-            tmp_att_feats = att_feats[k:k+1].expand(*((beam_size,)+att_feats.size()[1:])).contiguous()
-            tmp_p_att_feats = p_att_feats[k:k+1].expand(*((beam_size,)+p_att_feats.size()[1:])).contiguous()
+            tmp_fc_feats = fc_feats[k:k + 1].expand(beam_size, fc_feats.size(1))
+            tmp_att_feats = att_feats[k:k + 1].expand(*((beam_size,) + att_feats.size()[1:])).contiguous()
+            tmp_p_att_feats = p_att_feats[k:k + 1].expand(*((beam_size,) + p_att_feats.size()[1:])).contiguous()
             if type(self) == C2FTopDownModel:
-                tmp_p_att_feats_final = p_att_feats_final[k:k+1].expand(*((beam_size,)+p_att_feats_final.size()[1:])).contiguous()
+                tmp_p_att_feats_final = p_att_feats_final[k:k + 1].expand(*((beam_size,) + p_att_feats_final.size()[1:])).contiguous()
 
             for t in range(1):
-                if t == 0: # input <bos>
+                if t == 0:  # input <bos>
                     it = fc_feats.data.new(beam_size).long().zero_()
                     xt = self.embed(Variable(it, requires_grad=False))
                     if type(self) == C2FTopDownModel:
@@ -224,14 +234,19 @@ class AttModel(CaptionModel):
         batch_size = fc_feats.size(0)
         state = self.init_hidden(batch_size)
 
-        # embed fc and att feats
-        fc_feats = self.fc_embed(fc_feats)
-        _att_feats = self.att_embed(att_feats.view(-1, self.att_feat_size))
-        att_feats = _att_feats.view(*(att_feats.size()[:-1] + (self.rnn_size,)))
-
         # Project the attention feats first to reduce memory and computation comsumptions.
-        p_att_feats = self.ctx2att(att_feats.view(-1, self.rnn_size))
-        p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
+        if type(self) == SCATopDownModel:
+            p_att_feats_ch = self.ctx2att_ch(fc_feats.view(-1, 1))
+            # p_att_feats_ch = self.ctx2att_ch(fc_feats.view(-1, 1))
+            p_att_feats = p_att_feats_ch.view(*(att_feats.size()[:1] + (self.att_feat_size, self.att_hid_size)))
+        else:
+            # embed fc and att feats
+            _att_feats = self.att_embed(att_feats.view(-1, self.att_feat_size))
+            att_feats = _att_feats.view(*(att_feats.size()[:-1] + (self.rnn_size,)))
+            p_att_feats = self.ctx2att(att_feats.view(-1, self.rnn_size))
+            p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
+        fc_feats = att_feats.mean(1)
+
         if type(self) == C2FTopDownModel:
             p_att_feats_final = self.ctx2att_final(att_feats.view(-1, self.rnn_size))
             p_att_feats_final = p_att_feats_final.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
@@ -339,7 +354,7 @@ class AttModel(CaptionModel):
                     seq.append(it)  # seq[t] the input of t+2 time step
                     seqLogprobs.append(sampleLogprobs.view(-1))
 
-                output, state = self.core(xt, fc_feats, att_feats, p_att_feats, state)
+                output, state = self.core(xt, fc_feats, att_feats, p_att_feats_ch, state)
                 logprobs = F.log_softmax(self.logit(output))
         if type(self) == C2FTopDownModel:
             return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs], 1), torch.cat([_.unsqueeze(1) for _ in seq_fine], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs_fine], 1), torch.cat([_.unsqueeze(1) for _ in seq_coarse], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs_coarse], 1)
@@ -374,7 +389,6 @@ class AdaAtt_lstm(nn.Module):
         else:
             self.r_i2h = nn.Linear(self.rnn_size, self.rnn_size)
         self.r_h2h = nn.Linear(self.rnn_size, self.rnn_size)
-
 
     def forward(self, xt, img_fc, state):
 
@@ -510,8 +524,8 @@ class TopDownCore(nn.Module):
         super(TopDownCore, self).__init__()
         self.drop_prob_lm = opt.drop_prob_lm
 
-        self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size) # we, fc, h^2_t-1
-        self.lang_lstm = nn.LSTMCell(opt.rnn_size * 2, opt.rnn_size) # h^1_t, \hat v
+        self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # we, fc, h^2_t-1
+        self.lang_lstm = nn.LSTMCell(opt.rnn_size * 2, opt.rnn_size)  # h^1_t, \hat v
         self.attention = Attention(opt)
 
     def forward(self, xt, fc_feats, att_feats, p_att_feats, state):
@@ -578,6 +592,86 @@ class C2FTopDownCore(nn.Module):
         output = (output_att, output_fine, output_final)
         return output, state
 
+class SCATopDownCore(nn.Module):
+    def __init__(self, opt, use_maxout=False):
+        super(SCATopDownCore, self).__init__()
+        self.drop_prob_lm = opt.drop_prob_lm
+
+        self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size + opt.fc_feat_size, opt.rnn_size)
+        self.lang_lstm = nn.LSTMCell(opt.rnn_size + opt.att_feat_size, opt.rnn_size)  # h^1_t, \hat v
+        self.attention = SCAttention(opt)
+        # self.embed_feat = nn.Sequential(nn.Linear(opt.att_feat_size, opt.rnn_size),
+        #                                 nn.ReLU())
+
+    def forward(self, xt, fc_feats, att_feats, p_att_feats_ch, state):
+        prev_h = state[0][-1]
+        att_lstm_input = torch.cat([prev_h, fc_feats, xt], 1)
+
+        h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
+
+        att = self.attention(h_att, att_feats, p_att_feats_ch)
+
+        lang_lstm_input = torch.cat([att, h_att], 1)
+
+        h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
+
+        output = F.dropout(h_lang, self.drop_prob_lm, self.training)
+        state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
+
+        return output, state
+
+class SCAttention(nn.Module):
+    def __init__(self, opt):
+        super(SCAttention, self).__init__()
+        self.rnn_size = opt.rnn_size
+        self.att_feat_size = opt.att_feat_size
+        self.sp_att_hid_size = opt.att_hid_size   # 512
+        self.ch_att_hid_size = opt.att_hid_size
+
+        self.sp_h2att = nn.Linear(self.rnn_size, self.sp_att_hid_size)
+        self.ch_h2att = nn.Linear(self.rnn_size, self.ch_att_hid_size)
+        self.sp_alpha_net = nn.Linear(self.sp_att_hid_size, 1)
+        self.ch_alpha_net = nn.Linear(self.ch_att_hid_size, 1)
+        self.ctx2att = nn.Linear(self.att_feat_size, self.sp_att_hid_size)
+
+    def forward(self, h, att_feats, p_att_feats_ch):
+        # Channel-Spatial is a little better
+        att_size = att_feats.numel() // att_feats.size(0) // self.att_feat_size
+        p_att_feats_ch = p_att_feats_ch.view(-1, self.att_feat_size, self.ch_att_hid_size)
+        att_feats = att_feats.view(-1, att_size, self.att_feat_size)
+
+        # for channel attention
+        ch_att_h = self.ch_h2att(h)
+        # print(p_att_feats_ch.size(), ch_att_h.size())
+        ch_att_h = ch_att_h.unsqueeze(1).expand_as(p_att_feats_ch)
+        dot = F.tanh(ch_att_h + p_att_feats_ch)
+        dot = dot.view(-1, self.ch_att_hid_size)
+        dot = self.ch_alpha_net(dot)
+        dot = dot.view(-1, self.att_feat_size)
+        ch_weight = F.softmax(dot) * self.att_feat_size
+        # (batch, 36, 2048)
+        att_feats = att_feats * ch_weight.unsqueeze(1).expand_as(att_feats)
+
+        # # The p_att_feats here is already projected
+        # sp_att = p_att_feats.view(-1, att_size, self.sp_att_hid_size)
+        p_att_feats = self.ctx2att(att_feats.view(-1, self.att_feat_size))
+        sp_att = p_att_feats.view(*(att_feats.size()[:-1] + (self.sp_att_hid_size,)))
+
+        # for spatial attention
+        sp_att_h = self.sp_h2att(h)                        # batch * att_hid_size
+        sp_att_h = sp_att_h.unsqueeze(1).expand_as(sp_att)            # batch * att_size * att_hid_size
+        dot = sp_att + sp_att_h                                   # batch * att_size * att_hid_size
+        dot = F.tanh(dot)                                # batch * att_size * att_hid_size
+        dot = dot.view(-1, self.sp_att_hid_size)               # (batch * att_size) * att_hid_size
+        dot = self.sp_alpha_net(dot)                           # (batch * att_size) * 1
+        dot = dot.view(-1, att_size)                        # batch * att_size
+
+        sp_weight = F.softmax(dot)                             # batch * att_size
+        att_feats_ = att_feats.view(-1, att_size, self.att_feat_size)  # batch * att_size * att_feat_size
+        att_res = torch.bmm(sp_weight.unsqueeze(1), att_feats_).squeeze(1)  # batch * att_feat_size
+
+        return att_res
+
 class Attention(nn.Module):
     def __init__(self, opt):
         super(Attention, self).__init__()
@@ -601,8 +695,8 @@ class Attention(nn.Module):
         dot = dot.view(-1, att_size)                        # batch * att_size
 
         weight = F.softmax(dot)                             # batch * att_size
-        att_feats_ = att_feats.view(-1, att_size, self.rnn_size) # batch * att_size * att_feat_size
-        att_res = torch.bmm(weight.unsqueeze(1), att_feats_).squeeze(1) # batch * att_feat_size
+        att_feats_ = att_feats.view(-1, att_size, self.rnn_size)  # batch * att_size * att_feat_size
+        att_res = torch.bmm(weight.unsqueeze(1), att_feats_).squeeze(1)  # batch * att_feat_size
 
         return att_res
 
@@ -611,9 +705,9 @@ class Att2in2Core(nn.Module):
     def __init__(self, opt):
         super(Att2in2Core, self).__init__()
         self.input_encoding_size = opt.input_encoding_size
-        #self.rnn_type = opt.rnn_type
+        # self.rnn_type = opt.rnn_type
         self.rnn_size = opt.rnn_size
-        #self.num_layers = opt.num_layers
+        # self.num_layers = opt.num_layers
         self.drop_prob_lm = opt.drop_prob_lm
         self.fc_feat_size = opt.fc_feat_size
         self.att_feat_size = opt.att_feat_size
@@ -639,7 +733,7 @@ class Att2in2Core(nn.Module):
 
         in_transform = all_input_sums.narrow(1, 3 * self.rnn_size, 2 * self.rnn_size) + \
             self.a2c(att_res)
-        in_transform = torch.max(\
+        in_transform = torch.max(
             in_transform.narrow(1, 0, self.rnn_size),
             in_transform.narrow(1, self.rnn_size, self.rnn_size))
         next_c = forget_gate * state[1][-1] + in_gate * in_transform
@@ -665,7 +759,7 @@ class Att2in2Model(AttModel):
         super(Att2in2Model, self).__init__(opt)
         self.core = Att2in2Core(opt)
         delattr(self, 'fc_embed')
-        self.fc_embed = lambda x : x
+        self.fc_embed = lambda x: x
 
 class TopDownModel(AttModel):
     def __init__(self, opt):
@@ -682,4 +776,8 @@ class C2FTopDownModel(AttModel):
         self.num_layers = 3
         self.core = C2FTopDownCore(opt)
 
-
+class SCATopDownModel(AttModel):
+    def __init__(self, opt):
+        super(SCATopDownModel, self).__init__(opt)
+        self.num_layers = 2
+        self.core = SCATopDownCore(opt)

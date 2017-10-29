@@ -12,7 +12,7 @@ def parse_opt():
                         help='path to the directory containing the preprocessed att feats')
     parser.add_argument('--input_label_h5', type=str, default='data/aitalk_label.h5',
                         help='path to the h5file containing the preprocessed dataset')
-    parser.add_argument('--start_from', type=str, default='save/c2f_coarse',
+    parser.add_argument('--start_from', type=str, default=None,
                         help="""continue training from saved model at this path. Path must contain files saved by previous training process:
                         'infos.pkl'         : configuration;
                         'checkpoint'        : paths to model file(s) (created by tf).
@@ -23,8 +23,8 @@ def parse_opt():
                         help='Cached token file for calculating cider score during self critical training.')
 
     # Model settings
-    parser.add_argument('--caption_model', type=str, default="c2ftopdown",
-                        help='show_tell, show_attend_tell, all_img, fc, att2in, att2in2, adaatt, adaattmo, topdown')
+    parser.add_argument('--caption_model', type=str, default="SCAtopdown",
+                        help='show_tell, show_attend_tell, all_img, fc, att2in, att2in2, adaatt, adaattmo, topdown, c2f, SCA')
     parser.add_argument('--rnn_size', type=int, default=512,
                         help='size of the rnn in number of hidden nodes in each layer')
     parser.add_argument('--num_layers', type=int, default=1,
@@ -59,9 +59,9 @@ def parse_opt():
     # Optimization: for the Language Model
     parser.add_argument('--optim', type=str, default='adam',
                         help='what update to use? rmsprop|sgd|sgdmom|adagrad|adam|adamax')
-    parser.add_argument('--learning_rate', type=float, default=5e-4,
+    parser.add_argument('--learning_rate', type=float, default=4e-4,
                         help='learning rate')
-    parser.add_argument('--learning_rate_decay_start', type=int, default=2,
+    parser.add_argument('--learning_rate_decay_start', type=int, default=3,
                         help='at what iteration to start decaying learning rate? (-1 = dont) (in epoch)')
     parser.add_argument('--learning_rate_decay_every', type=int, default=3,
                         help='every how many iterations thereafter to drop LR?(in epoch)')
@@ -97,9 +97,9 @@ def parse_opt():
     # Evaluation/Checkpointing
     parser.add_argument('--val_images_use', type=int, default=-1,
                         help='how many images to use when periodically evaluating the validation loss? (-1 = all)')
-    parser.add_argument('--save_checkpoint_every', type=int, default=10000,
+    parser.add_argument('--save_checkpoint_every', type=int, default=100,
                         help='how often to save a model checkpoint (in iterations)?')
-    parser.add_argument('--checkpoint_path', type=str, default='save/c2f_coarse',
+    parser.add_argument('--checkpoint_path', type=str, default='save/SCA_bu',
                         help='directory to store checkpointed models')
     parser.add_argument('--language_eval', type=int, default=1,
                         help='Evaluate language as well (1 = yes, 0 = no)? BLEU/CIDEr/METEOR/ROUGE_L? requires coco-caption code from Github.')
@@ -109,7 +109,7 @@ def parse_opt():
                         help='Do we load previous best score when resuming training.')
 
     # misc
-    parser.add_argument('--id', type=str, default='13',
+    parser.add_argument('--id', type=str, default='',
                         help='an id identifying this run/job. used in cross-val and appended when writing progress files')
     parser.add_argument('--train_only', type=int, default=1,
                         help='if true then use 80k, else use 110k')
