@@ -37,10 +37,10 @@ class AttModel(CaptionModel):
         self.fc_feat_size = opt.fc_feat_size
         self.att_feat_size = opt.att_feat_size
         self.att_hid_size = opt.att_hid_size
-        if type(self) == C2FTopDownModel:
-            self.channel_num = 64
-            self.att_embed_perm = nn.Sequential(nn.Linear(self.channel_num, self.channel_num),
-                                                nn.Sigmoid())
+        #if type(self) == C2FTopDownModel:
+        #    self.channel_num = 64
+        #    self.att_embed_perm = nn.Sequential(nn.Linear(self.channel_num, self.channel_num),
+        #                                       nn.Sigmoid())
 
         self.ss_prob = 0.0  # Schedule sampling probability
 
@@ -532,7 +532,7 @@ class C2FTopDownCore(nn.Module):
 
         att_fine = self.attention_fine(h_att, att_feats, p_att_feats)
 
-        finelang_lstm_input = torch.cat([att_fine, h_att, xt_fine], 1)
+        finelang_lstm_input = torch.cat([att_fine, h_att, xt], 1)
         # lang_lstm_input = torch.cat([att, F.dropout(h_att, self.drop_prob_lm, self.training)], 1) ?????
 
         h_lang_fine, c_lang_fine = self.finelang_lstm(finelang_lstm_input, (state[0][1], state[1][1]))

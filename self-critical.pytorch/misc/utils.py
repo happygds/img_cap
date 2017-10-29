@@ -110,7 +110,7 @@ class c2fLanguageModelCriterion(nn.Module):
         output_final = output_final * tmp_final * mask_final / (torch.sum(tmp_final * mask_final) / torch.sum(mask_final))
         output_final = - torch.sum(output_final * mask_final) / torch.sum(mask_final)
 
-        return output_fine + output_final
+        return output_fine * 0 + output_final
 
 
 def set_lr(optimizer, lr):

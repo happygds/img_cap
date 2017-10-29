@@ -95,8 +95,8 @@ def array_to_str(arr):
     #     out += str(arr[i]) + ' '
 
     # # if doesnot have un-recognized word, use the jieba cut results
-    if '0' not in out_jieba:
-        out = ' '.join(out_jieba)
+    # if '0' not in out_jieba:
+    out = ' '.join(out_jieba)
 
     if len(out) == 0:
         out = '0'
@@ -181,15 +181,12 @@ def c2f_get_self_critical_reward(model, fc_feats, att_feats, data, gen_result, g
         res[3 * batch_size + i] = [tmp1]
         res_discount[3 * batch_size + i] = tmp2
 
-        # res[2 * batch_size + i] = [array_to_str(gen_result_fine[i])]
-        # res[3 * batch_size + i] = [array_to_str(greedy_res_fine[i])]
-
     gts = OrderedDict()
     for i in range(len(data['gts'])):
         gts[i] = [array_to_str(data['gts'][i][j])[0] for j in range(len(data['gts'][i]))]
 
-    res = {i: res[i] for i in range(4 * batch_size)}
-    gts = {i: gts[i % batch_size // seq_per_img] for i in range(4 * batch_size)}
+    res = {i: res[i] for i in range(2 * batch_size)}
+    gts = {i: gts[i % batch_size // seq_per_img] for i in range(2 * batch_size)}
     if only_cider:
         _, scores = CiderD_scorer.compute_score(gts, res)
     else:
@@ -200,9 +197,10 @@ def c2f_get_self_critical_reward(model, fc_feats, att_feats, data, gen_result, g
     scores_final = scores[:batch_size] - scores[batch_size: 2 * batch_size]
     # scores_final = scores[:batch_size] - \
     #     np.maximum(scores[batch_size: 2 * batch_size], scores[2 * batch_size: 3 * batch_size])
-    scores_fine = scores[2 * batch_size: 3 * batch_size] - scores[3 * batch_size: 4 * batch_size]
+    # scores_fine = scores[2 * batch_size: 3 * batch_size] - scores[3 * batch_size: 4 * batch_size]
 
     rewards = np.repeat(scores_final[:, np.newaxis], gen_result.shape[1], 1)
-    rewards_fine = np.repeat(scores_fine[:, np.newaxis], gen_result_fine.shape[1], 1)
+    # rewards_fine = np.repeat(scores_fine[:, np.newaxis], gen_result_fine.shape[1], 1)
+    rewards_fine = 0. * rewards
 
     return rewards, rewards_fine
