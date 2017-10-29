@@ -96,7 +96,7 @@ class c2fLanguageModelCriterion(nn.Module):
         output_fine = input_fine.gather(1, target_fine)
         tmp_fine = torch.pow(torch.clamp(1. - torch.exp(output_fine), 1e-16, 1.), self.gamma)
         # print(tmp.float())
-        output_fine = output_fine * tmp_fine * mask_fine / (torch.sum(tmp_fine * mask_fine) / torch.sum(mask_fine))
+        output_fine = output_fine * tmp_fine * mask_fine
         output_fine = - torch.sum(output_fine * mask_fine) / torch.sum(mask_fine)
 
         target_final = target[:, :input_final.size(1)]
@@ -107,7 +107,7 @@ class c2fLanguageModelCriterion(nn.Module):
         output_final = input_final.gather(1, target_final)
         tmp_final = torch.pow(torch.clamp(1. - torch.exp(output_final), 1e-16, 1.), self.gamma)
         # print(tmp.float())
-        output_final = output_final * tmp_final * mask_final / (torch.sum(tmp_final * mask_final) / torch.sum(mask_final))
+        output_final = output_final * tmp_final * mask_final
         output_final = - torch.sum(output_final * mask_final) / torch.sum(mask_final)
 
         return output_fine * 0 + output_final
