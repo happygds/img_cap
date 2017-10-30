@@ -191,7 +191,7 @@ def c2f_get_self_critical_reward(model, fc_feats, att_feats, data, gen_result, g
         _, scores = CiderD_scorer.compute_score(gts, res)
     else:
         scores = evaluate_captions_mix(gts, res)
-    scores *= res_discount
+    # scores *= res_discount
     print('Metric scores:', scores.mean())
 
     scores_final = scores[:batch_size] - scores[batch_size: 2 * batch_size]

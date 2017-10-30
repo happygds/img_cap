@@ -240,7 +240,7 @@ class AttModel(CaptionModel):
             seq_fine = []
             seqLogprobs_fine = []
         for t in range(self.seq_length + 1):
-            if t == 0: # input <bos>
+            if t == 0:  # input <bos>
                 it = fc_feats.data.new(batch_size).long().zero_()
                 if type(self) == C2FTopDownModel:
                     it_fine = fc_feats.data.new(batch_size).long().zero_()
@@ -489,8 +489,8 @@ class TopDownCore(nn.Module):
         super(TopDownCore, self).__init__()
         self.drop_prob_lm = opt.drop_prob_lm
 
-        self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size) # we, fc, h^2_t-1
-        self.lang_lstm = nn.LSTMCell(opt.rnn_size * 2, opt.rnn_size) # h^1_t, \hat v
+        self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # we, fc, h^2_t-1
+        self.lang_lstm = nn.LSTMCell(opt.rnn_size * 2, opt.rnn_size)  # h^1_t, \hat v
         self.attention = Attention(opt)
 
     def forward(self, xt, fc_feats, att_feats, p_att_feats, state):
@@ -501,12 +501,14 @@ class TopDownCore(nn.Module):
 
         att = self.attention(h_att, att_feats, p_att_feats)
 
-        lang_lstm_input = torch.cat([att, h_att], 1)
+        lang_lstm_input = torch.cat([att, h_att, xt], 1)
         # lang_lstm_input = torch.cat([att, F.dropout(h_att, self.drop_prob_lm, self.training)], 1) ?????
 
         h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
+        output = h_lang + att
+        output += self.proj_ctx_final(xt)
+        output = F.dropout(output, self.drop_prob_lm, self.training)
 
-        output = F.dropout(h_lang, self.drop_prob_lm, self.training)
         state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
 
         return output, state
@@ -516,8 +518,8 @@ class C2FTopDownCore(nn.Module):
         super(C2FTopDownCore, self).__init__()
         self.drop_prob_lm = opt.drop_prob_lm
 
-        self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size) # we, fc, h^2_t-1
-        self.finelang_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size) # h^1_t, \hat v
+        self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # we, fc, h^2_t-1
+        self.finelang_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # h^1_t, \hat v
         self.finallang_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)
         self.proj_ctx_fine = nn.Linear(opt.input_encoding_size, opt.rnn_size)
         self.proj_ctx_final = nn.Linear(opt.input_encoding_size, opt.rnn_size)
