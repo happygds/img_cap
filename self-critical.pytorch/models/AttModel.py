@@ -44,8 +44,7 @@ class AttModel(CaptionModel):
 
         self.ss_prob = 0.0  # Schedule sampling probability
 
-        self.embed = nn.Sequential(nn.Embedding(self.vocab_size + 1, self.input_encoding_size),
-                                   nn.ReLU())
+        self.embed = nn.Embedding(self.vocab_size + 1, self.input_encoding_size)
                                    # nn.Dropout(self.drop_prob_lm))
         self.fc_embed = nn.Sequential(nn.Linear(self.fc_feat_size, self.rnn_size),
                                       nn.ReLU())
@@ -501,7 +500,7 @@ class TopDownCore(nn.Module):
 
         att = self.attention(h_att, att_feats, p_att_feats)
 
-        lang_lstm_input = torch.cat([att, h_att, xt], 1)
+        lang_lstm_input = torch.cat([att, h_att], 1)
         # lang_lstm_input = torch.cat([att, F.dropout(h_att, self.drop_prob_lm, self.training)], 1) ?????
 
         h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
