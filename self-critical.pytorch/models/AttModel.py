@@ -44,7 +44,9 @@ class AttModel(CaptionModel):
 
         self.ss_prob = 0.0  # Schedule sampling probability
 
-        self.embed = nn.Embedding(self.vocab_size + 1, self.input_encoding_size)
+        # self.embed = nn.Embedding(self.vocab_size + 1, self.input_encoding_size)
+        self.embed = nn.Sequential(nn.Embedding(self.vocab_size + 1, self.input_encoding_size),
+                                   nn.ReLU())
                                    # nn.Dropout(self.drop_prob_lm))
         self.fc_embed = nn.Sequential(nn.Linear(self.fc_feat_size, self.rnn_size),
                                       nn.ReLU())
@@ -491,6 +493,7 @@ class TopDownCore(nn.Module):
         self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # we, fc, h^2_t-1
         self.lang_lstm = nn.LSTMCell(opt.rnn_size * 2, opt.rnn_size)  # h^1_t, \hat v
         self.attention = Attention(opt)
+        self.proj_ctx = nn.Linear(opt.input_encoding_size, opt.rnn_size)
 
     def forward(self, xt, fc_feats, att_feats, p_att_feats, state):
         prev_h = state[0][-1]
@@ -505,7 +508,7 @@ class TopDownCore(nn.Module):
 
         h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
         output = h_lang + att
-        output += self.proj_ctx_final(xt)
+        output += self.proj_ctx(xt)
         output = F.dropout(output, self.drop_prob_lm, self.training)
 
         state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
