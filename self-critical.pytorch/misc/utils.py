@@ -73,8 +73,9 @@ class LanguageModelCriterion(nn.Module):
         target = to_contiguous(target).view(-1, 1)
         mask = to_contiguous(mask).view(-1, 1)
         output = input.gather(1, target) * mask
-        # print(torch.pow((1. - torch.exp(output)), 1).float())
-        output = output * torch.pow((1. - torch.exp(output)), self.gamma)
+        tmp = torch.pow(torch.clamp(1. - torch.exp(output), 1e-16, 1.), self.gamma)
+        # print(tmp.float())
+        output = output * tmp * mask
         output = - torch.sum(output) / torch.sum(mask)
 
         return output
