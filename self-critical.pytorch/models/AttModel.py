@@ -293,7 +293,7 @@ class AttModel(CaptionModel):
                 if unfinished.sum() == 0 == 0:
                     break
                 it = it * unfinished.type_as(it)
-                seq.append(it)  # seq[t] the input of t+2 time step
+                seq.append(it) #seq[t] the input of t+2 time step
                 seqLogprobs.append(sampleLogprobs.view(-1))
 
             output, state = self.core(xt, fc_feats, att_feats, p_att_feats, state)
