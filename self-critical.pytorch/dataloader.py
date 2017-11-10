@@ -12,9 +12,11 @@ import torch
 import torch.utils.data as data
 
 import multiprocessing
+import time
 
 
 def get_npy_data(ix, fc_file, att_file, use_att):
+    time.sleep(0.0001)
     if use_att == True:
         tmp = np.load(att_file)['feat']
         return (tmp.mean(0), tmp, ix)
@@ -116,7 +118,7 @@ class DataLoader(data.Dataset):
         gts = []
 
         for i in range(batch_size):
-            import time
+            # import time
             t_start = time.time()
             # fetch image
             tmp_fc, tmp_att,\
@@ -166,14 +168,14 @@ class DataLoader(data.Dataset):
             info_dict['id'] = self.info['images'][ix]['id']
             info_dict['file_path'] = self.info['images'][ix]['file_path']
             infos.append(info_dict)
-            #print(i, time.time() - t_start)
+            # print(i, time.time() - t_start)
 
         # generate mask
         t_start = time.time()
         nonzeros = np.array(list(map(lambda x: (x != 0).sum() + 2, label_batch)))
         for ix, row in enumerate(mask_batch):
             row[:nonzeros[ix]] = 1
-        #print('mask', time.time() - t_start)
+        # print('mask', time.time() - t_start)
 
         data = {}
         data['fc_feats'] = np.stack(fc_batch).astype('float32')
@@ -227,7 +229,7 @@ class BlobFetcher():
                                                  sampler=self.dataloader.split_ix[self.split][self.dataloader.iterators[self.split]:],
                                                  shuffle=False,
                                                  pin_memory=True,
-                                                 num_workers=min(multiprocessing.cpu_count(), 10),
+                                                 num_workers=8,
                                                  collate_fn=lambda x: x[0]))
 
     def _get_next_minibatch_inds(self):

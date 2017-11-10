@@ -39,5 +39,12 @@ def prepro_cap(jsonfile):
 
 
 if __name__ == '__main__':
-    flags = prepro_cap('./caption_train_annotations_20170902.json')
-    pickle.dump(flags, file('./flags.pkl', 'w'))
+    # flags = prepro_cap('./caption_train_annotations_20170902.json')
+    # pickle.dump(flags, file('./flags.pkl', 'w'))
+    flags = pickle.load(file('./flags.pkl', 'r'))
+    num = 0
+    for key, item in flags.iteritems():
+        for word, count in item.items():
+            if count > 3:
+                num += 1
+    print(num)

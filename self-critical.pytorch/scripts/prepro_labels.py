@@ -35,9 +35,6 @@ import string
 # non-standard dependencies:
 import h5py
 import numpy as np
-import torch
-import torchvision.models as models
-from torch.autograd import Variable
 import skimage.io
 
 
@@ -195,7 +192,7 @@ if __name__ == "__main__":
   # options
   parser.add_argument('--max_length', default=32, type=int,
                       help='max length of a caption, in number of words. captions longer than this get clipped.')
-  parser.add_argument('--word_count_threshold', default=0, type=int,
+  parser.add_argument('--word_count_threshold', default=5, type=int,
                       help='only words that occur more than this number of times will be put in vocab')
 
   args = parser.parse_args()

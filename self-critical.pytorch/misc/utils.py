@@ -73,9 +73,9 @@ class LanguageModelCriterion(nn.Module):
         target = to_contiguous(target).view(-1, 1)
         mask = to_contiguous(mask).view(-1, 1)
         output = input.gather(1, target) * mask
-        tmp = torch.pow(torch.clamp(1. - torch.exp(output), 1e-16, 1.), self.gamma)
+        # tmp = torch.pow(torch.clamp(1. - torch.exp(output), 1e-16, 1.), self.gamma)
         # print(tmp.float())
-        output = output * tmp * mask
+        # output = output * tmp * mask
         output = - torch.sum(output) / torch.sum(mask)
 
         return output
@@ -95,9 +95,13 @@ class c2fLanguageModelCriterion(nn.Module):
         target_fine = to_contiguous(target_fine).view(-1, 1)
         mask_fine = to_contiguous(mask_fine).view(-1, 1)
         output_fine = input_fine.gather(1, target_fine)
-        tmp_fine = torch.pow(torch.clamp(1. - torch.exp(output_fine), 1e-16, 1.), self.gamma)
-        # print(tmp.float())
-        output_fine = output_fine * tmp_fine * mask_fine
+        # change to two dimension
+        # output_fine = output_fine.view(input_fine.size(0), -1)
+        # mask_fine = mask_fine.view(input_fine.size(0), -1)
+        # tmp_fine = torch.sum(torch.exp(output_fine) * mask_fine, 1) / (torch.sum(mask_fine, 1) + 1e-16)
+        # tmp_fine = torch.pow(torch.clamp(1. - tmp_fine, 1e-16, 1.), self.gamma)
+        # # print(tmp.float())
+        # output_fine = output_fine * tmp_fine.view(-1, 1) * mask_fine
         output_fine = - torch.sum(output_fine * mask_fine) / torch.sum(mask_fine)
 
         target_final = target[:, :input_final.size(1)]
@@ -106,12 +110,16 @@ class c2fLanguageModelCriterion(nn.Module):
         target_final = to_contiguous(target_final).view(-1, 1)
         mask_final = to_contiguous(mask_final).view(-1, 1)
         output_final = input_final.gather(1, target_final)
-        tmp_final = torch.pow(torch.clamp(1. - torch.exp(output_final), 1e-16, 1.), self.gamma)
-        # print(tmp.float())
-        output_final = output_final * tmp_final * mask_final
+        # change to two dimension
+        # output_final = output_final.view(input_final.size(0), -1)
+        # mask_final = mask_fine.view(input_final.size(0), -1)
+        # tmp_final = torch.sum(torch.exp(output_final) * mask_final, 1) / (torch.sum(mask_final, 1) + 1e-16)
+        # tmp_final = torch.pow(torch.clamp(1. - tmp_final, 1e-16, 1.), self.gamma)
+        # # print(tmp.float())
+        # output_final = output_final * tmp_final.view(-1, 1) * mask_final
         output_final = - torch.sum(output_final * mask_final) / torch.sum(mask_final)
 
-        return output_fine * 0 + output_final
+        return 0. * output_fine + output_final
 
 
 def set_lr(optimizer, lr):

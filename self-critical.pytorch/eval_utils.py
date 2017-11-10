@@ -188,14 +188,14 @@ def eval_split(model, crit, loader, eval_kwargs={}, model_id=None):
     for i, pred in enumerate(predictions):
         name = idx2names[pred['image_id']]
         cap = ''.join(pred['caption'].split(' ')).replace(' ', '')
-        predictions[i]['image_id'] = name[:-4]
+        predictions[i]['image_id'] = name.split('.')[0]
         predictions[i]['caption'] = cap
 
     if caption_model == 'c2ftopdown':
         for i, pred in enumerate(predictions_fine):
             name = idx2names[pred['image_id']]
             cap = ''.join(pred['caption'].split(' ')).replace(' ', '')
-            predictions_fine[i]['image_id'] = name[:-4]
+            predictions_fine[i]['image_id'] = name.split('.')[0]
             predictions_fine[i]['caption'] = cap
 
     if lang_eval == 1:

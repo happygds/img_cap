@@ -92,9 +92,9 @@ class AttModel(CaptionModel):
             if self.training and i >= 1 and self.ss_prob > 0.0:  # otherwiste no need to sample
                 sample_prob = fc_feats.data.new(batch_size).uniform_(0, 1)
                 sample_mask = sample_prob < self.ss_prob
-                # if type(self) == C2FTopDownModel:
-                #     sample_prob_fine = fc_feats.data.new(batch_size).uniform_(0, 1)
-                #     sample_mask_fine = sample_prob_fine < self.ss_prob
+                if type(self) == C2FTopDownModel:
+                    sample_prob_fine = fc_feats.data.new(batch_size).uniform_(0, 1)
+                    sample_mask_fine = sample_prob_fine < self.ss_prob
 
                 if sample_mask.sum() == 0:
                     it = seq[:, i].clone()
@@ -103,7 +103,7 @@ class AttModel(CaptionModel):
                     sample_ind = sample_mask.nonzero().view(-1)
                     it = seq[:, i].data.clone()
                     if type(self) == C2FTopDownModel:
-                        # sample_ind_fine = sample_mask_fine.nonzero().view(-1)
+                        sample_ind_fine = sample_mask_fine.nonzero().view(-1)
                         it_fine = seq[:, i].data.clone()
 
                     prob_prev = torch.exp(outputs_final[-1].data)  # fetch prev distribution: shape Nx(M+1)
@@ -112,8 +112,8 @@ class AttModel(CaptionModel):
                     it = Variable(it, requires_grad=False)
                     if type(self) == C2FTopDownModel:
                         prob_prev_fine = torch.exp(outputs[-1].data)
-                        it_fine.index_copy_(0, sample_ind, torch.multinomial(
-                            prob_prev_fine, 1).view(-1).index_select(0, sample_ind))
+                        it_fine.index_copy_(0, sample_ind_fine, torch.multinomial(
+                            prob_prev_fine, 1).view(-1).index_select(0, sample_ind_fine))
                         it_fine = Variable(it_fine, requires_grad=False)
             else:
                 it = seq[:, i].clone()
@@ -237,9 +237,11 @@ class AttModel(CaptionModel):
 
         seq = []
         seqLogprobs = []
+        outLogprobs = []
         if type(self) == C2FTopDownModel:
             seq_fine = []
             seqLogprobs_fine = []
+            outLogprobs_fine = []
         for t in range(self.seq_length + 1):
             if t == 0:  # input <bos>
                 it = fc_feats.data.new(batch_size).long().zero_()
@@ -271,17 +273,16 @@ class AttModel(CaptionModel):
                 it = torch.multinomial(prob_prev, 1).cuda()
 
                 if type(self) == C2FTopDownModel:
-                    # it_fine = torch.multinomial(prob_prev_fine, 1).cuda()
-                    it_fine = torch.max(prob_prev_fine, 1)[1].view(-1, 1).cuda()
-                    # sampleLogprobs_fine, it_fine = torch.max(logprobs.data, 1)
-                    sampleLogprobs = logprobsfinal.gather(1, Variable(it, requires_grad=False)) # gather the logprobs at sampled positions
-                    sampleLogprobs_fine = logprobs.gather(1, Variable(it_fine, requires_grad=False)) # gather the logprobs at sampled positions
-
-                    it_fine = it_fine.view(-1).long() # and flatten indices for downstream processing
+                    it_fine = torch.multinomial(prob_prev_fine, 1).cuda()
+                    # it_fine = torch.max(prob_prev_fine, 1)[1].view(-1, 1).cuda()
+                    sampleLogprobs = logprobsfinal.gather(1, Variable(it, requires_grad=False))
+                    sampleLogprobs_fine = logprobs.gather(1, Variable(it_fine, requires_grad=False))
+                    it_fine = it_fine.view(-1).long()  # and flatten indices for downstream processing
 
                 else:
-                    sampleLogprobs = logprobs.gather(1, Variable(it, requires_grad=False)) # gather the logprobs at sampled positions
-                it = it.view(-1).long() # and flatten indices for downstream processing
+                    sampleLogprobs = logprobs.gather(1, Variable(it, requires_grad=False))
+                    # gather the logprobs at sampled positions
+                it = it.view(-1).long()  # and flatten indices for downstream processing
             xt = self.embed(Variable(it, requires_grad=False))
             if type(self) == C2FTopDownModel:
                 xt_fine = self.embed(Variable(it_fine, requires_grad=False))
@@ -307,6 +308,8 @@ class AttModel(CaptionModel):
                 output, state = self.core(xt, xt_fine, fc_feats, att_feats, p_att_feats, p_att_feats_final, state)
                 logprobs = F.log_softmax(self.logit(output[0]))
                 logprobsfinal = F.log_softmax(self.logit_final(output[1]))
+                outLogprobs.append(logprobsfinal)
+                outLogprobs_fine.append(logprobs)
             else:
                 if t >= 1:
                     # stop when all finished
@@ -323,7 +326,7 @@ class AttModel(CaptionModel):
                 output, state = self.core(xt, fc_feats, att_feats, p_att_feats, state)
                 logprobs = F.log_softmax(self.logit(output))
         if type(self) == C2FTopDownModel:
-            return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs], 1), torch.cat([_.unsqueeze(1) for _ in seq_fine], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs_fine], 1)
+            return torch.cat([_.unsqueeze(1) for _ in seq], 1), [torch.cat([_.unsqueeze(1) for _ in seqLogprobs], 1), torch.cat([_.unsqueeze(1) for _ in outLogprobs], 1)], torch.cat([_.unsqueeze(1) for _ in seq_fine], 1), [torch.cat([_.unsqueeze(1) for _ in seqLogprobs_fine], 1), torch.cat([_.unsqueeze(1) for _ in outLogprobs_fine], 1)]
         else:
             return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs], 1)
 
@@ -507,8 +510,7 @@ class TopDownCore(nn.Module):
         # lang_lstm_input = torch.cat([att, F.dropout(h_att, self.drop_prob_lm, self.training)], 1) ?????
 
         h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
-        output = h_lang + att
-        output += self.proj_ctx(xt)
+        output = h_lang
         output = F.dropout(output, self.drop_prob_lm, self.training)
 
         state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
@@ -523,8 +525,8 @@ class C2FTopDownCore(nn.Module):
         self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # we, fc, h^2_t-1
         self.finelang_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # h^1_t, \hat v
         self.finallang_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)
-        self.proj_ctx_fine = nn.Linear(opt.input_encoding_size, opt.rnn_size)
-        self.proj_ctx_final = nn.Linear(opt.input_encoding_size, opt.rnn_size)
+        # self.proj_ctx_fine = nn.Linear(opt.input_encoding_size, opt.rnn_size)
+        # self.proj_ctx_final = nn.Linear(opt.input_encoding_size, opt.rnn_size)
         self.attention_fine = Attention(opt)
         self.attention_final = Attention(opt)
 
@@ -540,16 +542,14 @@ class C2FTopDownCore(nn.Module):
         # lang_lstm_input = torch.cat([att, F.dropout(h_att, self.drop_prob_lm, self.training)], 1) ?????
 
         h_lang_fine, c_lang_fine = self.finelang_lstm(finelang_lstm_input, (state[0][1], state[1][1]))
-        output_fine = h_lang_fine + att_fine
-        output_fine += self.proj_ctx_fine(xt_fine)
+        output_fine = h_lang_fine
         output_fine = F.dropout(output_fine, self.drop_prob_lm, self.training)
 
         att_final = self.attention_final(h_lang_fine + att_fine, att_feats, p_att_feats_final)
         finallang_lstm_input = torch.cat([att_final, h_lang_fine, xt], 1)
 
         h_lang_final, c_lang_final = self.finallang_lstm(finallang_lstm_input, (state[0][2], state[1][2]))
-        output_final = h_lang_final + att_final
-        output_final += self.proj_ctx_final(xt)
+        output_final = h_lang_final
         output_final = F.dropout(output_final, self.drop_prob_lm, self.training)
 
         state = (torch.stack([h_att, h_lang_fine, h_lang_final]), torch.stack([c_att, c_lang_fine, c_lang_final]))
