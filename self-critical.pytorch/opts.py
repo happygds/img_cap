@@ -61,7 +61,7 @@ def parse_opt():
                         help='what update to use? rmsprop|sgd|sgdmom|adagrad|adam')
     parser.add_argument('--learning_rate', type=float, default=5e-5,
                         help='learning rate')
-    parser.add_argument('--learning_rate_decay_start', type=int, default=22,
+    parser.add_argument('--learning_rate_decay_start', type=int, default=23,
                         help='at what iteration to start decaying learning rate? (-1 = dont) (in epoch)')
     parser.add_argument('--learning_rate_decay_every', type=int, default=3,
                         help='every how many iterations thereafter to drop LR?(in epoch)')
@@ -87,7 +87,7 @@ def parse_opt():
 
     parser.add_argument('--only_cider', type=int, default=False,
                         help='default only use cider metric as rewards, otherwise use the mixed metrics')
-    parser.add_argument('--temperature', type=float, default=1.5,
+    parser.add_argument('--temperature', type=float, default=1.2,
                         help='temperature when sampling from distributions (i.e. when sample_max = 0). Lower = "safer" predictions.')
     parser.add_argument('--seq_length', type=int, default=25,
                         help='the maximum length of one sentence')
@@ -109,7 +109,7 @@ def parse_opt():
                         help='Do we load previous best score when resuming training.')
 
     # misc
-    parser.add_argument('--id', type=str, default='44',
+    parser.add_argument('--id', type=str, default='47',
                         help='an id identifying this run/job. used in cross-val and appended when writing progress files')
     parser.add_argument('--train_only', type=int, default=1,
                         help='if true then use 80k, else use 110k')

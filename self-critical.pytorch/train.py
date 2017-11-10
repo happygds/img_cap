@@ -124,7 +124,7 @@ def train(opt):
                 sc_flag = False
 
             update_lr_flag = False
-            alpha = 0.9 ** max(0., (epoch - 26.))
+            alpha = 0.9 ** max(0., (epoch - 27.))
             # alpha = 1.
 
         start = time.time()
