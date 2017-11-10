@@ -612,13 +612,15 @@ class C2FAttention(nn.Module):
 
         weight = F.softmax(dot)                             # batch * att_size
         att_feats_ = att_feats.view(-1, att_size, self.rnn_size)  # batch * att_size * att_feat_size
+        if t_ind >= att_size:
+            t_ind = att_size - 1
         att_current = weight[:, t_ind].unsqueeze(1) * att_feats_[:, t_ind]  # batch * att_feat_size
         if t_ind > 0:
             att_before = torch.bmm(weight[:, :t_ind].unsqueeze(1), att_feats_[:, :t_ind]).squeeze(1) / t_ind
         else:
             att_before = 0. * att_current
-        if t_ind < att_size:
-            att_after = torch.bmm(weight[:, t_ind:].unsqueeze(1), att_feats_[:, t_ind:]).squeeze(1) / (att_size - t_ind)
+        if t_ind < att_size - 1:
+            att_after = torch.bmm(weight[:, (t_ind + 1):].unsqueeze(1), att_feats_[:, (t_ind + 1):]).squeeze(1) / (att_size - t_ind - 1)
         else:
             att_after = 0. * att_current
 
