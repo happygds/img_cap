@@ -16,7 +16,7 @@ import time
 
 
 def get_npy_data(ix, fc_file, att_file, use_att):
-    time.sleep(0.0001)
+    # time.sleep(0.0001)
     if use_att == True:
         tmp = np.load(att_file)['feat']
         return (tmp.mean(0), tmp, ix)
