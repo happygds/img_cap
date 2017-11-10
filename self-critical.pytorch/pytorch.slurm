@@ -8,7 +8,7 @@
 #SBATCH --mail-user=YOU@MAIL.COM
 #SBATCH --output=tfout.out
 #SBATCH --error=tferr.err
-#SBATCH --time=72:00:00
+#SBATCH --time=73:10:00
 
 source /usr/share/Modules/init/bash
 unset MODULEPATH
