@@ -131,6 +131,8 @@ class AttModel(CaptionModel):
         if type(self) == C2FTopDownModel:
             p_h_fine = self.ctx2att_hfine(h_fine.view(-1, self.rnn_size))
             p_h_fine = p_h_fine.view(*(h_fine.size()[:-1] + (self.att_hid_size,)))
+            p_att_fine = self.ctx2att_attfine(att_fine.view(-1, self.rnn_size))
+            p_att_fine = p_att_fine.view(*(att_fine.size()[:-1] + (self.att_hid_size,)))
             for i in range(seq.size(1) - 1):
                 if self.training and i >= 1 and self.ss_prob > 0.0:  # otherwiste no need to sample
                     sample_prob_final = fc_feats.data.new(batch_size).uniform_(0, 1)
@@ -154,7 +156,7 @@ class AttModel(CaptionModel):
 
                 xt_final = self.embed(it_final)
                 output_final, state_final = self.core_final(
-                    xt_final, i, att_feats, p_att_feats_final, h_fine, p_h_fine, att_fine, state_final)
+                    xt_final, i, att_feats, p_att_feats_final, h_fine, p_h_fine, att_fine, p_att_fine, state_final)
                 output_final = F.log_softmax(self.logit_final(output_final))
                 outputs_final.append(output_final)
 
@@ -313,6 +315,8 @@ class AttModel(CaptionModel):
         if type(self) == C2FTopDownModel:
             p_h_fine = self.ctx2att_hfine(h_fine.view(-1, self.rnn_size))
             p_h_fine = p_h_fine.view(*(h_fine.size()[:-1] + (self.att_hid_size,)))
+            p_att_fine = self.ctx2att_attfine(att_fine.view(-1, self.rnn_size))
+            p_att_fine = p_att_fine.view(*(att_fine.size()[:-1] + (self.att_hid_size,)))
             for t in range(self.seq_length + 1):
                 if t == 0:  # input <bos>
                     it_final = fc_feats.data.new(batch_size).long().zero_()
@@ -344,7 +348,7 @@ class AttModel(CaptionModel):
                     seqLogprobs_final.append(sampleLogprobs_final.view(-1))
 
                 output_final, state_final = self.core_final(
-                    xt_final, t, att_feats, p_att_feats_final, h_fine, p_h_fine, att_fine, state_final)
+                    xt_final, t, att_feats, p_att_feats_final, h_fine, p_h_fine, att_fine, p_att_fine, state_final)
                 logprobs_final = F.log_softmax(self.logit_final(output_final))
                 outLogprobs_final.append(logprobs_final)
 
@@ -545,22 +549,20 @@ class C2FTopDownCore(nn.Module):
         self.drop_prob_lm = opt.drop_prob_lm
 
         # self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # we, fc, h^2_t-1
-        self.lang_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 4, opt.rnn_size)  # h^1_t, \hat v
+        self.lang_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # h^1_t, \hat v
         self.attention_feats = Attention(opt)
-        self.attention_hfine = C2FAttention(opt)
+        self.attention_hfine = Attention(opt)
+        self.attention_afine = Attention(opt)
 
-    def forward(self, xt, t_ind, att_feats, p_att_feats, h_fine, p_h_fine, att_fine, state):
+    def forward(self, xt, t_ind, att_feats, p_att_feats, h_fine, p_h_fine, att_fine, p_att_fine, state):
         prev_h = state[0]
-        att_size = h_fine.size(1)
-        if t_ind >= att_size:
-            att_feats_input = prev_h
-            # att_hfine_input = prev_h
-        else:
-            att_feats_input = prev_h + att_fine[:, t_ind]
-        att_hfine_input = prev_h
+        # att_size = h_fine.size(1)
 
-        att = self.attention_feats(att_feats_input, att_feats, p_att_feats)
-        att_hfine = self.attention_hfine(t_ind, att_hfine_input, h_fine, p_h_fine)
+        att_hfine = self.attention_hfine(prev_h, h_fine, p_h_fine)
+        att_afine = self.attention_afine(prev_h, att_fine, p_att_fine)
+
+        att = self.attention_feats(att_hfine + att_afine, att_feats, p_att_feats)
+        # att_hfine = self.attention_hfine(t_ind, att_hfine_input, h_fine, p_h_fine)
 
         lang_lstm_input = torch.cat([xt, att, att_hfine], 1)
 
@@ -625,7 +627,7 @@ class C2FAttention(nn.Module):
 
         weight = F.softmax(dot)                             # batch * att_size
         att_feats_ = att_feats.view(-1, att_size, self.rnn_size)  # batch * att_size * att_feat_size
-        if t_ind > att_size - 1:
+        if t_ind >= att_size:
             att_before = torch.bmm(weight.unsqueeze(1), att_feats_).squeeze(1) / att_size
             att_current = 0. * att_before
             att_after = 0. * att_current
@@ -716,6 +718,7 @@ class C2FTopDownModel(AttModel):
         super(C2FTopDownModel, self).__init__(opt)
         self.ctx2att_final = nn.Linear(self.rnn_size, self.att_hid_size)
         self.ctx2att_hfine = nn.Linear(self.rnn_size, self.att_hid_size)
+        self.ctx2att_attfine = nn.Linear(self.rnn_size, self.att_hid_size)
         self.logit_final = nn.Linear(self.rnn_size, self.vocab_size + 1)
         self.num_layers = 2
         self.core = TopDownCore(opt)
