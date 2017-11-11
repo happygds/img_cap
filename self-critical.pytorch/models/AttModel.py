@@ -553,10 +553,14 @@ class C2FTopDownCore(nn.Module):
         prev_h = state[0]
         att_size = h_fine.size(1)
         if t_ind >= att_size:
-            t_ind = att_size - 1
+            att_feats_input = prev_h
+            # att_hfine_input = prev_h
+        else:
+            att_feats_input = prev_h + att_fine[:, t_ind]
+        att_hfine_input = prev_h
 
-        att = self.attention_feats(prev_h + h_fine[:, t_ind] + att_fine[:, t_ind], att_feats, p_att_feats)
-        att_hfine = self.attention_hfine(t_ind, prev_h + h_fine[:, t_ind], h_fine, p_h_fine)
+        att = self.attention_feats(att_feats_input, att_feats, p_att_feats)
+        att_hfine = self.attention_hfine(t_ind, att_hfine_input, h_fine, p_h_fine)
 
         lang_lstm_input = torch.cat([xt, att, att_hfine], 1)
 
@@ -621,15 +625,21 @@ class C2FAttention(nn.Module):
 
         weight = F.softmax(dot)                             # batch * att_size
         att_feats_ = att_feats.view(-1, att_size, self.rnn_size)  # batch * att_size * att_feat_size
-        att_current = weight[:, t_ind].unsqueeze(1) * att_feats_[:, t_ind]  # batch * att_feat_size
-        if t_ind > 0:
-            att_before = torch.bmm(weight[:, :t_ind].unsqueeze(1), att_feats_[:, :t_ind]).squeeze(1) / t_ind
-        else:
-            att_before = 0. * att_current
-        if t_ind < att_size - 1:
-            att_after = torch.bmm(weight[:, (t_ind + 1):].unsqueeze(1), att_feats_[:, (t_ind + 1):]).squeeze(1) / (att_size - t_ind - 1)
-        else:
+        if t_ind > att_size - 1:
+            att_before = torch.bmm(weight.unsqueeze(1), att_feats_).squeeze(1) / att_size
+            att_current = 0. * att_before
             att_after = 0. * att_current
+        else:
+            att_current = weight[:, t_ind].unsqueeze(1) * att_feats_[:, t_ind]  # batch * att_feat_size
+            if t_ind > 0:
+                att_before = torch.bmm(weight[:, :t_ind].unsqueeze(1), att_feats_[:, :t_ind]).squeeze(1) / t_ind
+            else:
+                att_before = 0. * att_current
+            if t_ind < att_size - 1:
+                att_after = torch.bmm(weight[:, (t_ind + 1):].unsqueeze(1),
+                                      att_feats_[:, (t_ind + 1):]).squeeze(1) / (att_size - t_ind - 1)
+            else:
+                att_after = 0. * att_current
 
         att_res = torch.cat([att_before, att_current, att_after], 1)
 
