@@ -82,7 +82,7 @@ def train(opt):
     else:
         gamma = opt.gamma
 
-    if opt.caption_model == 'c2ftopdown':
+    if opt.caption_model == 'c2ftopdown' or opt.caption_model == 'c2fada':
         crit = utils.c2fLanguageModelCriterion(gamma)
     else:
         crit = utils.LanguageModelCriterion(gamma)
@@ -124,7 +124,7 @@ def train(opt):
                 sc_flag = False
 
             update_lr_flag = False
-            alpha = 0.9 ** max(0., (epoch - 27.))
+            alpha = 0.9 ** max(0., (epoch - 33.))
             # alpha = 1.
 
         start = time.time()
@@ -144,7 +144,7 @@ def train(opt):
         if not sc_flag:
             loss = crit(model(fc_feats, att_feats, labels), labels[:, 1:], masks[:, 1:])
         else:
-            if opt.caption_model == 'c2ftopdown':
+            if opt.caption_model == 'c2ftopdown' or opt.caption_model == 'c2fada':
                 gen_result, sample_logprobs, gen_result_fine, sample_logprobs_fine = model.sample(
                     fc_feats, att_feats, {'sample_max': 0, 'temperature': opt.temperature})
 
@@ -210,7 +210,7 @@ def train(opt):
                            'dataset': opt.input_json}
             eval_kwargs.update(vars(opt))
             val_loss, predictions, lang_stats = eval_utils.eval_split(model, crit, loader, eval_kwargs, model_id=model_id)
-            if opt.caption_model == 'c2ftopdown':
+            if opt.caption_model == 'c2ftopdown' or opt.caption_model == 'c2fada':
                 lang_stats, lang_stats_fine = lang_stats
             # Write validation result into summary
             if tf is not None:
@@ -244,7 +244,7 @@ def train(opt):
                                         5. * lang_stats['ROUGE_L'] + 10. * lang_stats['METEOR']))
                 f.write('\n\n')
 
-            if opt.caption_model == 'c2ftopdown':
+            if opt.caption_model == 'c2ftopdown' or opt.caption_model == 'c2fada':
                 with open(os.path.join(opt.checkpoint_path, 'val.RandB.scores_fine.txt'), 'a+') as f:
                     f.write('\n')
                     f.write("Model {}:".format(model_id))

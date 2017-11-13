@@ -113,7 +113,7 @@ def eval_split(model, crit, loader, eval_kwargs={}, model_id=None):
     loss_sum = 0
     loss_evals = 1e-8
     predictions = []
-    if caption_model == 'c2ftopdown':
+    if caption_model == 'c2ftopdown' or caption_model == 'c2fada':
         predictions_fine = []
     while True:
         data = loader.get_batch(split)
@@ -136,18 +136,18 @@ def eval_split(model, crit, loader, eval_kwargs={}, model_id=None):
         tmp = [Variable(torch.from_numpy(_), volatile=True).cuda() for _ in tmp]
         fc_feats, att_feats = tmp
         # forward the model to also get generated samples for each image
-        if caption_model == 'c2ftopdown':
+        if caption_model == 'c2ftopdown' or caption_model == 'c2fada':
             seq, _, seq_fine, _ = model.sample(fc_feats, att_feats, eval_kwargs)
         else:
             seq, _ = model.sample(fc_feats, att_feats, eval_kwargs)
 
         # set_trace()
         sents = utils.decode_sequence(loader.get_vocab(), seq)
-        if caption_model == 'c2ftopdown':
+        if caption_model == 'c2ftopdown' or caption_model == 'c2fada':
             sents_fine = utils.decode_sequence(loader.get_vocab(), seq_fine)
         for k, sent in enumerate(sents):
             entry = {'image_id': data['infos'][k]['id'], 'caption': sent}
-            if caption_model == 'c2ftopdown':
+            if caption_model == 'c2ftopdown' or caption_model == 'c2fada':
                 entry_fine = {'image_id': data['infos'][k]['id'], 'caption': sents_fine[k]}
                 predictions_fine.append(entry_fine)
             if eval_kwargs.get('dump_path', 0) == 1:
@@ -163,7 +163,7 @@ def eval_split(model, crit, loader, eval_kwargs={}, model_id=None):
             if verbose:
                 if int(entry['image_id']) % 200 == 0:
                     print('image %s: %s' % (entry['image_id'], entry['caption']))
-                    if caption_model == 'c2ftopdown':
+                    if caption_model == 'c2ftopdown' or caption_model == 'c2fada':
                         print('image %s: %s' % (entry['image_id'], entry_fine['caption']))
 
         # if we wrapped around the split or used up val imgs budget then bail
@@ -191,7 +191,7 @@ def eval_split(model, crit, loader, eval_kwargs={}, model_id=None):
         predictions[i]['image_id'] = name.split('.')[0]
         predictions[i]['caption'] = cap
 
-    if caption_model == 'c2ftopdown':
+    if caption_model == 'c2ftopdown' or caption_model == 'c2fada':
         for i, pred in enumerate(predictions_fine):
             name = idx2names[pred['image_id']]
             cap = ''.join(pred['caption'].split(' ')).replace(' ', '')
@@ -200,12 +200,12 @@ def eval_split(model, crit, loader, eval_kwargs={}, model_id=None):
 
     if lang_eval == 1:
         lang_stats = language_eval(dataset, predictions, str(model_id), split)
-        if caption_model == 'c2ftopdown':
+        if caption_model == 'c2ftopdown' or caption_model == 'c2fada':
             lang_stats_fine = language_eval(dataset, predictions_fine, str(model_id) + '_fine', split)
 
     # Switch back to training mode
     model.train()
-    if caption_model == 'c2ftopdown':
+    if caption_model == 'c2ftopdown' or caption_model == 'c2fada':
         return loss_sum / loss_evals, predictions, [lang_stats, lang_stats_fine]
     else:
         return loss_sum / loss_evals, predictions, lang_stats

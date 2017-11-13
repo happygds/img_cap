@@ -47,14 +47,15 @@ class RewardCriterion(nn.Module):
         super(RewardCriterion, self).__init__()
 
     def forward(self, input, seq, reward):
-        input = to_contiguous(input).view(-1)
-        reward = to_contiguous(reward).view(-1)
+        input = to_contiguous(input)
+        reward = to_contiguous(reward)
         mask = (seq > 0).float()
-        mask = to_contiguous(torch.cat([mask.new(mask.size(0), 1).fill_(1), mask[:, :-1]], 1)).view(-1)
-        output = input * Variable(mask)
-        # print(torch.pow((1. - torch.exp(output)), 1).float())
-        # output = output * torch.pow((1. - torch.exp(output)), 1)
-        output = output * reward
+        mask = to_contiguous(torch.cat([mask.new(mask.size(0), 1).fill_(1), mask[:, :-1]], 1))
+        mask = Variable(mask)
+        output = input * mask * reward
+        # bsz = input.size(0)
+        # output = - torch.sum(output, 1) / (torch.sum(mask, 1) + 1e-16)
+        # output = torch.sum(output) / bsz
         output = - torch.sum(output) / torch.sum(mask)
 
         return output
@@ -88,6 +89,7 @@ class c2fLanguageModelCriterion(nn.Module):
     def forward(self, input, target, mask):
         input_fine = input[0]
         input_final = input[1]
+        # bsz = input_fine.size(0)
         # truncate to the same size
         target_fine = target[:, :input_fine.size(1)]
         mask_fine = mask[:, :input_fine.size(1)]
@@ -95,13 +97,11 @@ class c2fLanguageModelCriterion(nn.Module):
         target_fine = to_contiguous(target_fine).view(-1, 1)
         mask_fine = to_contiguous(mask_fine).view(-1, 1)
         output_fine = input_fine.gather(1, target_fine)
-        # change to two dimension
-        # output_fine = output_fine.view(input_fine.size(0), -1)
-        # mask_fine = mask_fine.view(input_fine.size(0), -1)
-        # tmp_fine = torch.sum(torch.exp(output_fine) * mask_fine, 1) / (torch.sum(mask_fine, 1) + 1e-16)
-        # tmp_fine = torch.pow(torch.clamp(1. - tmp_fine, 1e-16, 1.), self.gamma)
-        # # print(tmp.float())
-        # output_fine = output_fine * tmp_fine.view(-1, 1) * mask_fine
+        # # change to two dimension
+        # output_fine = output_fine.view(bsz, -1)
+        # mask_fine = mask_fine.view(bsz, -1)
+        # output_fine = torch.sum(output_fine * mask_fine, 1) / (torch.sum(mask_fine, 1) + 1e-16)
+        # output_fine = - torch.sum(output_fine) / bsz
         output_fine = - torch.sum(output_fine * mask_fine) / torch.sum(mask_fine)
 
         target_final = target[:, :input_final.size(1)]
@@ -110,13 +110,11 @@ class c2fLanguageModelCriterion(nn.Module):
         target_final = to_contiguous(target_final).view(-1, 1)
         mask_final = to_contiguous(mask_final).view(-1, 1)
         output_final = input_final.gather(1, target_final)
-        # change to two dimension
-        # output_final = output_final.view(input_final.size(0), -1)
-        # mask_final = mask_fine.view(input_final.size(0), -1)
-        # tmp_final = torch.sum(torch.exp(output_final) * mask_final, 1) / (torch.sum(mask_final, 1) + 1e-16)
-        # tmp_final = torch.pow(torch.clamp(1. - tmp_final, 1e-16, 1.), self.gamma)
-        # # print(tmp.float())
-        # output_final = output_final * tmp_final.view(-1, 1) * mask_final
+        # # change to two dimension
+        # output_final = output_final.view(bsz, -1)
+        # mask_final = mask_fine.view(bsz, -1)
+        # output_final = torch.sum(output_final * mask_final, 1) / (torch.sum(mask_final, 1) + 1e-16)
+        # output_final = - torch.sum(output_final) / bsz
         output_final = - torch.sum(output_final * mask_final) / torch.sum(mask_final)
 
         return output_fine + output_final

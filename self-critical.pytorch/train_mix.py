@@ -93,6 +93,12 @@ def train(opt):
     # Load the optimizer
     if vars(opt).get('start_from', None) is not None and os.path.isfile(os.path.join(opt.start_from, "optimizer.pth")):
         optimizer.load_state_dict(torch.load(os.path.join(opt.start_from, 'optimizer.pth')))
+        # # eval model
+        # eval_kwargs = {'split': 'val', 'verbose': True,
+        #                'dataset': opt.input_json}
+        # eval_kwargs.update(vars(opt))
+        # _, _, lang_stats = eval_utils.eval_split(model, crit, loader, eval_kwargs)
+        # print('before train: ', lang_stats)
 
     while True:
         if update_lr_flag:
@@ -118,6 +124,8 @@ def train(opt):
                 sc_flag = False
 
             update_lr_flag = False
+            alpha = 0.9 ** max(0., (epoch - 27.))
+            # alpha = 1.
 
         start = time.time()
         # Load data from train split (0)
@@ -141,11 +149,13 @@ def train(opt):
                     fc_feats, att_feats, {'sample_max': 0, 'temperature': opt.temperature})
 
                 reward, reward_fine = c2f_get_self_critical_reward(
-                    model, fc_feats, att_feats, data, gen_result, gen_result_fine, only_cider=opt.only_cider)
-                loss = rl_crit(sample_logprobs, gen_result, Variable(
+                    model, fc_feats, att_feats, data, gen_result, gen_result_fine, alpha, only_cider=opt.only_cider)
+                loss = 0.2 * rl_crit(sample_logprobs[0], gen_result, Variable(
                     torch.from_numpy(reward).float().cuda(), requires_grad=False))
-                loss += rl_crit(sample_logprobs_fine, gen_result_fine, Variable(
+                loss += rl_crit(sample_logprobs_fine[0], gen_result_fine, Variable(
                     torch.from_numpy(reward_fine).float().cuda(), requires_grad=False))
+
+                # loss += 5e-3 * crit([sample_logprobs_fine[1], sample_logprobs[1]], labels[:, 1:], masks[:, 1:])
             else:
                 gen_result, sample_logprobs = model.sample(
                     fc_feats, att_feats, {'sample_max': 0, 'temperature': opt.temperature})
@@ -164,8 +174,8 @@ def train(opt):
                 print("iter {} (epoch {}), train_loss = {:.3f}, time/batch = {:.3f}"
                       .format(iteration, epoch, train_loss, end - start))
             else:
-                print("iter {} (epoch {}), avg_reward = {:.3f}, time/batch = {:.3f}"
-                      .format(iteration, epoch, np.mean(reward[:, 0]), end - start))
+                print("iter {} (epoch {}), train_loss = {:.3f}, avg_reward = {:.3f}, time/batch = {:.3f}"
+                      .format(iteration, epoch, train_loss, np.mean(reward[:, 0]), end - start))
 
         # Update the iteration and epoch
         iteration += 1
@@ -209,7 +219,6 @@ def train(opt):
                     add_summary_value(tf_summary_writer, k, v, iteration)
                 tf_summary_writer.flush()
             val_result_history[iteration] = {'loss': val_loss, 'lang_stats': lang_stats, 'predictions': predictions}
-
 
             with open(os.path.join(opt.checkpoint_path, 'val.RandB.scores.txt'), 'a+') as f:
                 f.write('\n')
