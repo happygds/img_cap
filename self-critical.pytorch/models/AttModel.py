@@ -21,6 +21,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import *
 import misc.utils as utils
+import numpy as np
 
 from .CaptionModel import CaptionModel
 
@@ -40,12 +41,21 @@ class AttModel(CaptionModel):
 
         self.ss_prob = 0.0  # Schedule sampling probability
 
-        # self.embed = nn.Embedding(self.vocab_size + 1, self.input_encoding_size)
-        self.embed = nn.Sequential(nn.Embedding(self.vocab_size + 1, self.input_encoding_size), nn.Tanh())
-        self.fc_embed = nn.Sequential(nn.Linear(self.fc_feat_size, self.rnn_size), nn.Tanh())
-        # self.att_embed = nn.Linear(self.att_feat_size, 2 * self.rnn_size)
+        embed = nn.Embedding(self.vocab_size + 1, self.input_encoding_size)
+        embed.weight.data.copy_(torch.from_numpy(np.load('./data/glove_vectors.npz')['feat']))
+        # self.embed = nn.Sequential(embed, nn.ReLU())
+        self.embed = embed
+
+        self.fc_embed = nn.Sequential(nn.Linear(self.fc_feat_size, self.rnn_size),
+                                      nn.ReLU())
+        # self.fc_embed = nn.Linear(self.fc_feat_size, 2 * self.rnn_size)
+
+        self.att_embed = nn.Sequential(nn.Linear(self.att_feat_size, self.rnn_size),
+                                       nn.ReLU())
+        # self.att_embed = nn.Linear(self.fc_feat_size, 2 * self.rnn_size)
+
         self.logit = nn.Linear(self.rnn_size, self.vocab_size + 1)
-        self.ctx2att = nn.Linear(self.att_feat_size, self.att_hid_size)
+        self.ctx2att = nn.Linear(self.rnn_size, self.att_hid_size)
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
@@ -62,23 +72,26 @@ class AttModel(CaptionModel):
             outputs_final = []
 
         # # embed fc and att feats
-        # gate_fc_feats = F.sigmoid(fc_feat.narrow(1, 0, self.rnn_size))
-        # fc_feats = gate_fc_feats * F.tanh(fc_feats.narrow(1, self.rnn_size, 2 * self.rnn_size))
+        # fc_feats = fc_feats / torch.norm(fc_feats, 2, 1, True)
+        # att_feats = att_feats / torch.norm(att_feats, 2, 2, True)
 
+        # fc_feats = self.fc_embed(fc_feats)
+        # g_fc = F.sigmoid(fc_feats.narrow(1, 0, self.rnn_size))
+        # fc_feats = F.tanh(fc_feats.narrow(1, self.rnn_size, 2 * self.rnn_size)) * g_fc
         # _att_feats = self.att_embed(att_feats.view(-1, self.att_feat_size))
-        # gate_att_feats = F.sigmoid(_att_feats.narrow(1, 0, self.rnn_size))
-        # _att_feats = gate_att_feats * F.tanh(_att_feats.narrow(1, self.rnn_size, 2 * self.rnn_size))
+        # g_att_feats = F.sigmoid(_att_feats.narrow(1, 0, self.rnn_size))
+        # _att_feats = F.tanh(_att_feats.narrow(1, self.rnn_size, 2 * self.rnn_size)) * g_att_feats
         # att_feats = _att_feats.view(*(att_feats.size()[:-1] + (self.rnn_size,)))
 
-        fc_feats = fc_feats / torch.norm(fc_feats, 2, 1, True)
-        att_feats = att_feats / torch.norm(att_feats, 2, 2, True)
         fc_feats = self.fc_embed(fc_feats)
+        _att_feats = self.att_embed(att_feats.view(-1, self.att_feat_size))
+        att_feats = _att_feats.view(*(att_feats.size()[:-1] + (self.rnn_size,)))
 
         # Project the attention feats first to reduce memory and computation comsumptions.
-        p_att_feats = self.ctx2att(att_feats.view(-1, self.att_feat_size))
+        p_att_feats = self.ctx2att(att_feats.view(-1, self.rnn_size))
         p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
         if type(self) == C2FTopDownModel or type(self) == C2FAdaModel:
-            p_att_feats_final = self.ctx2att_final(att_feats.view(-1, self.att_feat_size))
+            p_att_feats_final = self.ctx2att_final(att_feats.view(-1, self.rnn_size))
             p_att_feats_final = p_att_feats_final.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
 
         for i in range(seq.size(1) - 1):
@@ -156,7 +169,18 @@ class AttModel(CaptionModel):
         beam_size = opt.get('beam_size', 10)
         batch_size = fc_feats.size(0)
 
-        # embed fc and att feats
+        # # embed fc and att feats
+        # fc_feats = fc_feats / torch.norm(fc_feats, 2, 1, True)
+        # att_feats = att_feats / torch.norm(att_feats, 2, 2, True)
+
+        # fc_feats = self.fc_embed(fc_feats)
+        # g_fc = F.sigmoid(fc_feats.narrow(1, 0, self.rnn_size))
+        # fc_feats = F.tanh(fc_feats.narrow(1, self.rnn_size, 2 * self.rnn_size)) * g_fc
+        # _att_feats = self.att_embed(att_feats.view(-1, self.att_feat_size))
+        # g_att_feats = F.sigmoid(_att_feats.narrow(1, 0, self.rnn_size))
+        # _att_feats = F.tanh(_att_feats.narrow(1, self.rnn_size, 2 * self.rnn_size)) * g_att_feats
+        # att_feats = _att_feats.view(*(att_feats.size()[:-1] + (self.rnn_size,)))
+
         fc_feats = self.fc_embed(fc_feats)
         _att_feats = self.att_embed(att_feats.view(-1, self.att_feat_size))
         att_feats = _att_feats.view(*(att_feats.size()[:-1] + (self.rnn_size,)))
@@ -220,18 +244,26 @@ class AttModel(CaptionModel):
         state = self.init_hidden(batch_size)
 
         # # embed fc and att feats
+        # fc_feats = fc_feats / torch.norm(fc_feats, 2, 1, True)
+        # att_feats = att_feats / torch.norm(att_feats, 2, 2, True)
+
         # fc_feats = self.fc_embed(fc_feats)
+        # g_fc = F.sigmoid(fc_feats.narrow(1, 0, self.rnn_size))
+        # fc_feats = F.tanh(fc_feats.narrow(1, self.rnn_size, 2 * self.rnn_size)) * g_fc
         # _att_feats = self.att_embed(att_feats.view(-1, self.att_feat_size))
+        # g_att_feats = F.sigmoid(_att_feats.narrow(1, 0, self.rnn_size))
+        # _att_feats = F.tanh(_att_feats.narrow(1, self.rnn_size, 2 * self.rnn_size)) * g_att_feats
         # att_feats = _att_feats.view(*(att_feats.size()[:-1] + (self.rnn_size,)))
-        fc_feats = fc_feats / torch.norm(fc_feats, 2, 1, True)
-        att_feats = att_feats / torch.norm(att_feats, 2, 2, True)
+
         fc_feats = self.fc_embed(fc_feats)
+        _att_feats = self.att_embed(att_feats.view(-1, self.att_feat_size))
+        att_feats = _att_feats.view(*(att_feats.size()[:-1] + (self.rnn_size,)))
 
         # Project the attention feats first to reduce memory and computation comsumptions.
-        p_att_feats = self.ctx2att(att_feats.view(-1, self.att_feat_size))
+        p_att_feats = self.ctx2att(att_feats.view(-1, self.rnn_size))
         p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
         if type(self) == C2FTopDownModel or type(self) == C2FAdaModel:
-            p_att_feats_final = self.ctx2att_final(att_feats.view(-1, self.att_feat_size))
+            p_att_feats_final = self.ctx2att_final(att_feats.view(-1, self.rnn_size))
             p_att_feats_final = p_att_feats_final.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
 
         seq = []
@@ -576,21 +608,16 @@ class Attention(nn.Module):
         super(Attention, self).__init__()
         self.rnn_size = opt.rnn_size
         self.att_hid_size = opt.att_hid_size
-        self.att_feat_size = opt.att_feat_size
 
         self.h2att = nn.Linear(self.rnn_size, self.att_hid_size)
         self.alpha_net = nn.Linear(self.att_hid_size, 1)
 
-        self.gate_out = nn.Linear(opt.att_feat_size, opt.input_encoding_size)
-        self.tanh_out = nn.Linear(opt.att_feat_size, opt.input_encoding_size)
-
     def forward(self, h, att_feats, p_att_feats):
         # The p_att_feats here is already projected
-        att_size = att_feats.numel() // att_feats.size(0) // self.att_feat_size
+        att_size = att_feats.numel() // att_feats.size(0) // self.rnn_size
         att = p_att_feats.view(-1, att_size, self.att_hid_size)
 
         att_h = self.h2att(h)                        # batch * att_hid_size
-        # print(att.size(), att_h.size())
         att_h = att_h.unsqueeze(1).expand_as(att)            # batch * att_size * att_hid_size
         dot = att + att_h                                   # batch * att_size * att_hid_size
         dot = F.tanh(dot)                                # batch * att_size * att_hid_size
@@ -599,12 +626,10 @@ class Attention(nn.Module):
         dot = dot.view(-1, att_size)                        # batch * att_size
 
         weight = F.softmax(dot)                             # batch * att_size
-        att_feats_ = att_feats.view(-1, att_size, self.att_feat_size) # batch * att_size * att_feat_size
+        att_feats_ = att_feats.view(-1, att_size, self.rnn_size) # batch * att_size * att_feat_size
         att_res = torch.bmm(weight.unsqueeze(1), att_feats_).squeeze(1) # batch * att_feat_size
 
-        out = F.sigmoid(self.gate_out(att_res)) * F.tanh(self.tanh_out(att_res))
-
-        return out
+        return att_res
 
 
 class Att2in2Core(nn.Module):
@@ -676,7 +701,7 @@ class TopDownModel(AttModel):
 class C2FTopDownModel(AttModel):
     def __init__(self, opt):
         super(C2FTopDownModel, self).__init__(opt)
-        self.ctx2att_final = nn.Linear(self.att_feat_size, self.att_hid_size)
+        self.ctx2att_final = nn.Linear(self.rnn_size, self.att_hid_size)
         self.logit_final = nn.Linear(self.rnn_size, self.vocab_size + 1)
         self.num_layers = 3
         self.core = C2FTopDownCore(opt)
@@ -684,7 +709,7 @@ class C2FTopDownModel(AttModel):
 class C2FAdaModel(AttModel):
     def __init__(self, opt):
         super(C2FAdaModel, self).__init__(opt)
-        self.ctx2att_final = nn.Linear(self.att_feat_size, self.att_hid_size)
+        self.ctx2att_final = nn.Linear(self.rnn_size, self.att_hid_size)
         self.logit_final = nn.Linear(self.rnn_size, self.vocab_size + 1)
         self.num_layers = 3
         self.core = C2FAdaCore(opt, True)

@@ -61,9 +61,9 @@ def parse_opt():
                         help='what update to use? rmsprop|sgd|sgdmom|adagrad|adam')
     parser.add_argument('--learning_rate', type=float, default=4e-4,
                         help='learning rate')
-    parser.add_argument('--learning_rate_decay_start', type=int, default=0,
+    parser.add_argument('--learning_rate_decay_start', type=int, default=4,
                         help='at what iteration to start decaying learning rate? (-1 = dont) (in epoch)')
-    parser.add_argument('--learning_rate_decay_every', type=int, default=3,
+    parser.add_argument('--learning_rate_decay_every', type=int, default=2,
                         help='every how many iterations thereafter to drop LR?(in epoch)')
     parser.add_argument('--learning_rate_decay_rate', type=float, default=0.8,
                         help='every how many iterations thereafter to drop LR?(in epoch)')
@@ -76,7 +76,7 @@ def parse_opt():
     parser.add_argument('--weight_decay', type=float, default=0,
                         help='weight_decay')
 
-    parser.add_argument('--scheduled_sampling_start', type=int, default=0,
+    parser.add_argument('--scheduled_sampling_start', type=int, default=1,
                         help='at what iteration to start decay gt probability')
     parser.add_argument('--scheduled_sampling_increase_every', type=int, default=3,
                         help='every how many iterations thereafter to gt probability (in epochs)')
@@ -99,7 +99,7 @@ def parse_opt():
                         help='how many images to use when periodically evaluating the validation loss? (-1 = all)')
     parser.add_argument('--save_checkpoint_every', type=int, default=10000,
                         help='how often to save a model checkpoint (in iterations)?')
-    parser.add_argument('--checkpoint_path', type=str, default='save/c2f_att64_norm',
+    parser.add_argument('--checkpoint_path', type=str, default='save/c2f_att64_glove',
                         help='directory to store checkpointed models')
     parser.add_argument('--language_eval', type=int, default=1,
                         help='Evaluate language as well (1 = yes, 0 = no)? BLEU/CIDEr/METEOR/ROUGE_L? requires coco-caption code from Github.')
