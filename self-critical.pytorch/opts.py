@@ -23,7 +23,7 @@ def parse_opt():
                         help='Cached token file for calculating cider score during self critical training.')
 
     # Model settings
-    parser.add_argument('--caption_model', type=str, default="c2fada",
+    parser.add_argument('--caption_model', type=str, default="c2ftopdown",
                         help='show_tell, show_attend_tell, all_img, fc, att2in, att2in2, adaatt, adaattmo, topdown')
     parser.add_argument('--rnn_size', type=int, default=512,
                         help='size of the rnn in number of hidden nodes in each layer')
@@ -61,11 +61,11 @@ def parse_opt():
                         help='what update to use? rmsprop|sgd|sgdmom|adagrad|adam')
     parser.add_argument('--learning_rate', type=float, default=4e-4,
                         help='learning rate')
-    parser.add_argument('--learning_rate_decay_start', type=int, default=3,
+    parser.add_argument('--learning_rate_decay_start', type=int, default=0,
                         help='at what iteration to start decaying learning rate? (-1 = dont) (in epoch)')
     parser.add_argument('--learning_rate_decay_every', type=int, default=3,
                         help='every how many iterations thereafter to drop LR?(in epoch)')
-    parser.add_argument('--learning_rate_decay_rate', type=float, default=0.7,
+    parser.add_argument('--learning_rate_decay_rate', type=float, default=0.8,
                         help='every how many iterations thereafter to drop LR?(in epoch)')
     parser.add_argument('--optim_alpha', type=float, default=0.9,
                         help='alpha for adam')
@@ -76,20 +76,20 @@ def parse_opt():
     parser.add_argument('--weight_decay', type=float, default=0,
                         help='weight_decay')
 
-    parser.add_argument('--scheduled_sampling_start', type=int, default=1,
+    parser.add_argument('--scheduled_sampling_start', type=int, default=0,
                         help='at what iteration to start decay gt probability')
-    parser.add_argument('--scheduled_sampling_increase_every', type=int, default=4,
+    parser.add_argument('--scheduled_sampling_increase_every', type=int, default=3,
                         help='every how many iterations thereafter to gt probability (in epochs)')
-    parser.add_argument('--scheduled_sampling_increase_prob', type=float, default=0.05,
+    parser.add_argument('--scheduled_sampling_increase_prob', type=float, default=0.03,
                         help='How much to update the prob')
-    parser.add_argument('--scheduled_sampling_max_prob', type=float, default=0.3,
+    parser.add_argument('--scheduled_sampling_max_prob', type=float, default=0.25,
                         help='Maximum scheduled sampling prob.')
 
     parser.add_argument('--only_cider', type=int, default=False,
                         help='default only use cider metric as rewards, otherwise use the mixed metrics')
     parser.add_argument('--temperature', type=float, default=1.,
                         help='temperature when sampling from distributions (i.e. when sample_max = 0). Lower = "safer" predictions.')
-    parser.add_argument('--seq_length', type=int, default=21,
+    parser.add_argument('--seq_length', type=int, default=25,
                         help='the maximum length of one sentence')
     parser.add_argument('--gamma', type=float, default=0,
                         help='the gamma value for focal loss')
@@ -99,7 +99,7 @@ def parse_opt():
                         help='how many images to use when periodically evaluating the validation loss? (-1 = all)')
     parser.add_argument('--save_checkpoint_every', type=int, default=10000,
                         help='how often to save a model checkpoint (in iterations)?')
-    parser.add_argument('--checkpoint_path', type=str, default='save/c2f_ada64',
+    parser.add_argument('--checkpoint_path', type=str, default='save/c2f_att64_norm',
                         help='directory to store checkpointed models')
     parser.add_argument('--language_eval', type=int, default=1,
                         help='Evaluate language as well (1 = yes, 0 = no)? BLEU/CIDEr/METEOR/ROUGE_L? requires coco-caption code from Github.')

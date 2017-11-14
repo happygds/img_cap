@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=c2fada
+#SBATCH --job-name=c2f_norm
 #SBATCH --partition=p100
 #SBATCH -n 1
 #SBATCH --gres=gpu:1
@@ -8,7 +8,7 @@
 #SBATCH --mail-user=YOU@MAIL.COM
 #SBATCH --output=tfout.out
 #SBATCH --error=tferr.err
-#SBATCH --time=72:00:00
+#SBATCH --time=66:00:00
 
 source /usr/share/Modules/init/bash
 unset MODULEPATH
