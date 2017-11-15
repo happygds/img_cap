@@ -8,7 +8,7 @@ def parse_opt():
                         help='path to the json file containing additional info and vocab')
     parser.add_argument('--input_fc_dir', type=str, default='data/cocotalk_fc',
                         help='path to the directory containing the preprocessed fc feats')
-    parser.add_argument('--input_att_dir', type=str, default='data/aitalk64',
+    parser.add_argument('--input_att_dir', type=str, default='../self-critical.pytorch/data/aitalk64',
                         help='path to the directory containing the preprocessed att feats')
     parser.add_argument('--input_label_h5', type=str, default='data/aitalk_label.h5',
                         help='path to the h5file containing the preprocessed dataset')
@@ -99,7 +99,7 @@ def parse_opt():
                         help='how many images to use when periodically evaluating the validation loss? (-1 = all)')
     parser.add_argument('--save_checkpoint_every', type=int, default=10000,
                         help='how often to save a model checkpoint (in iterations)?')
-    parser.add_argument('--checkpoint_path', type=str, default='save/c2f_att64_glove',
+    parser.add_argument('--checkpoint_path', type=str, default='save/c2f_att64_glove_gt',
                         help='directory to store checkpointed models')
     parser.add_argument('--language_eval', type=int, default=1,
                         help='Evaluate language as well (1 = yes, 0 = no)? BLEU/CIDEr/METEOR/ROUGE_L? requires coco-caption code from Github.')

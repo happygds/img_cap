@@ -55,7 +55,7 @@ class AttModel(CaptionModel):
         # self.att_embed = nn.Linear(self.fc_feat_size, 2 * self.rnn_size)
 
         self.logit = nn.Linear(self.rnn_size, self.vocab_size + 1)
-        self.ctx2att = nn.Linear(self.rnn_size, self.att_hid_size)
+        self.ctx2att = nn.Linear(self.rnn_size, 2 * self.att_hid_size)
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
@@ -89,10 +89,10 @@ class AttModel(CaptionModel):
 
         # Project the attention feats first to reduce memory and computation comsumptions.
         p_att_feats = self.ctx2att(att_feats.view(-1, self.rnn_size))
-        p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
+        p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (2 * self.att_hid_size,)))
         if type(self) == C2FTopDownModel or type(self) == C2FAdaModel:
             p_att_feats_final = self.ctx2att_final(att_feats.view(-1, self.rnn_size))
-            p_att_feats_final = p_att_feats_final.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
+            p_att_feats_final = p_att_feats_final.view(*(att_feats.size()[:-1] + (2 * self.att_hid_size,)))
 
         for i in range(seq.size(1) - 1):
             if self.training and i >= 1 and self.ss_prob > 0.0:  # otherwiste no need to sample
@@ -187,10 +187,10 @@ class AttModel(CaptionModel):
 
         # Project the attention feats first to reduce memory and computation comsumptions.
         p_att_feats = self.ctx2att(att_feats.view(-1, self.rnn_size))
-        p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
+        p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (2 * self.att_hid_size,)))
         if type(self) == C2FTopDownModel or type(self) == C2FAdaModel:
             p_att_feats_final = self.ctx2att_final(att_feats.view(-1, self.rnn_size))
-            p_att_feats_final = p_att_feats_final.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
+            p_att_feats_final = p_att_feats_final.view(*(att_feats.size()[:-1] + (2 * self.att_hid_size,)))
 
         assert beam_size <= self.vocab_size + 1, 'lets assume this for now, otherwise this corner case causes a few headaches down the road. can be dealt with in future if needed'
         seq = torch.LongTensor(self.seq_length, batch_size).zero_()
@@ -261,10 +261,10 @@ class AttModel(CaptionModel):
 
         # Project the attention feats first to reduce memory and computation comsumptions.
         p_att_feats = self.ctx2att(att_feats.view(-1, self.rnn_size))
-        p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
+        p_att_feats = p_att_feats.view(*(att_feats.size()[:-1] + (2 * self.att_hid_size,)))
         if type(self) == C2FTopDownModel or type(self) == C2FAdaModel:
             p_att_feats_final = self.ctx2att_final(att_feats.view(-1, self.rnn_size))
-            p_att_feats_final = p_att_feats_final.view(*(att_feats.size()[:-1] + (self.att_hid_size,)))
+            p_att_feats_final = p_att_feats_final.view(*(att_feats.size()[:-1] + (2 * self.att_hid_size,)))
 
         seq = []
         seqLogprobs = []
@@ -562,14 +562,15 @@ class C2FTopDownCore(nn.Module):
     def __init__(self, opt, use_maxout=False):
         super(C2FTopDownCore, self).__init__()
         self.drop_prob_lm = opt.drop_prob_lm
+        self.rnn_size = opt.rnn_size
 
         self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # we, fc, h^2_t-1
         self.finelang_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)  # h^1_t, \hat v
         self.finallang_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size)
-        self.proj_ctx_fine = nn.Linear(opt.input_encoding_size, opt.rnn_size)
-        self.proj_ctx_final = nn.Linear(opt.input_encoding_size, opt.rnn_size)
-        self.hout_fine = nn.Linear(opt.rnn_size, opt.rnn_size)
-        self.hout_final = nn.Linear(opt.rnn_size, opt.rnn_size)
+        self.proj_ctx_fine = nn.Linear(opt.input_encoding_size, 2 * opt.rnn_size)
+        self.proj_ctx_final = nn.Linear(opt.input_encoding_size, 2 * opt.rnn_size)
+        self.hout_fine = nn.Linear(opt.rnn_size, 2 * opt.rnn_size)
+        self.hout_final = nn.Linear(opt.rnn_size, 2 * opt.rnn_size)
         self.attention_fine = Attention(opt)
         self.attention_final = Attention(opt)
 
@@ -586,8 +587,9 @@ class C2FTopDownCore(nn.Module):
 
         h_lang_fine, c_lang_fine = self.finelang_lstm(finelang_lstm_input, (state[0][1], state[1][1]))
         # output_fine = h_lang_fine
-        output_fine = self.hout_fine(h_lang_fine) + self.proj_ctx_fine(att_fine) + xt_fine
-        output_fine = F.tanh(output_fine)
+        output_fine = self.hout_fine(h_lang_fine) + self.proj_ctx_fine(att_fine)
+        output_fine = F.tanh(output_fine.narrow(1, 0, self.rnn_size) + xt_fine) * F.sigmoid(output_fine.narrow(1, self.rnn_size, 2 * self.rnn_size) + xt_fine)
+        # output_fine = F.tanh(output_fine + xt_fine)
         output_fine = F.dropout(output_fine, self.drop_prob_lm, self.training)
 
         att_final = self.attention_final(h_lang_fine + att_fine, att_feats, p_att_feats_final)
@@ -595,8 +597,9 @@ class C2FTopDownCore(nn.Module):
 
         h_lang_final, c_lang_final = self.finallang_lstm(finallang_lstm_input, (state[0][2], state[1][2]))
         # output_final = h_lang_final
-        output_final = self.hout_final(h_lang_final) + self.proj_ctx_final(att_final) + xt
-        output_final = F.tanh(output_final)
+        output_final = self.hout_final(h_lang_final) + self.proj_ctx_final(att_final)
+        output_final = F.tanh(output_final.narrow(1, 0, self.rnn_size) + xt) * F.sigmoid(output_final.narrow(1, self.rnn_size, 2 * self.rnn_size) + xt)
+        # output_final = F.tanh(output_final + xt)
         output_final = F.dropout(output_final, self.drop_prob_lm, self.training)
 
         state = (torch.stack([h_att, h_lang_fine, h_lang_final]), torch.stack([c_att, c_lang_fine, c_lang_final]))
@@ -609,18 +612,19 @@ class Attention(nn.Module):
         self.rnn_size = opt.rnn_size
         self.att_hid_size = opt.att_hid_size
 
-        self.h2att = nn.Linear(self.rnn_size, self.att_hid_size)
+        self.h2att = nn.Linear(self.rnn_size, 2 * self.att_hid_size)
         self.alpha_net = nn.Linear(self.att_hid_size, 1)
 
     def forward(self, h, att_feats, p_att_feats):
         # The p_att_feats here is already projected
         att_size = att_feats.numel() // att_feats.size(0) // self.rnn_size
-        att = p_att_feats.view(-1, att_size, self.att_hid_size)
+        att = p_att_feats.view(-1, att_size, 2 * self.att_hid_size)
 
         att_h = self.h2att(h)                        # batch * att_hid_size
         att_h = att_h.unsqueeze(1).expand_as(att)            # batch * att_size * att_hid_size
-        dot = att + att_h                                   # batch * att_size * att_hid_size
-        dot = F.tanh(dot)                                # batch * att_size * att_hid_size
+        out = att + att_h                                   # batch * att_size * att_hid_size
+        # dot = F.tanh(dot)                                # batch * att_size * att_hid_size
+        dot = F.sigmoid(out.narrow(2, 0, self.att_hid_size)) * F.tanh(out.narrow(2, self.att_hid_size, 2 * self.att_hid_size))
         dot = dot.view(-1, self.att_hid_size)               # (batch * att_size) * att_hid_size
         dot = self.alpha_net(dot)                           # (batch * att_size) * 1
         dot = dot.view(-1, att_size)                        # batch * att_size
@@ -701,7 +705,7 @@ class TopDownModel(AttModel):
 class C2FTopDownModel(AttModel):
     def __init__(self, opt):
         super(C2FTopDownModel, self).__init__(opt)
-        self.ctx2att_final = nn.Linear(self.rnn_size, self.att_hid_size)
+        self.ctx2att_final = nn.Linear(self.rnn_size, 2 * self.att_hid_size)
         self.logit_final = nn.Linear(self.rnn_size, self.vocab_size + 1)
         self.num_layers = 3
         self.core = C2FTopDownCore(opt)
@@ -709,7 +713,7 @@ class C2FTopDownModel(AttModel):
 class C2FAdaModel(AttModel):
     def __init__(self, opt):
         super(C2FAdaModel, self).__init__(opt)
-        self.ctx2att_final = nn.Linear(self.rnn_size, self.att_hid_size)
+        self.ctx2att_final = nn.Linear(self.rnn_size, 2 * self.att_hid_size)
         self.logit_final = nn.Linear(self.rnn_size, self.vocab_size + 1)
         self.num_layers = 3
         self.core = C2FAdaCore(opt, True)
