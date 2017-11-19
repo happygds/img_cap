@@ -91,8 +91,7 @@ def build_dict(imgs, wtoi, params):
   refs_words = []
   refs_idxs = []
   for img in imgs:
-    if (params['split'] == img['split']) or \
-        (params['split'] == 'train' and img['split'] == 'val'):
+    if img['split'] == 'train' or img['split'] == 'val':
       #(params['split'] == 'val' and img['split'] == 'restval') or \
       ref_words = []
       ref_idxs = []

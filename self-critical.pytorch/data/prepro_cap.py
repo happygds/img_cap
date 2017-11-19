@@ -34,6 +34,7 @@ def prepro_cap(jsonfile, split, pre_list, startidx):
             sid = image_id * 5 + sentenid
             sent_item = {}
             # cut words
+            sentence = sentence.replace('\n', '').replace(' ', '').strip()
             text = jieba.cut(sentence.encode('utf-8'), cut_all=False)
             text = [i for i in text]
             if len(text) == 0:
@@ -70,10 +71,11 @@ def prepro_test(imgpth, split, pre_list, startidx):
         img_item['split'] = split
         sentences = []
         sid_list = []
-        for sentenid, sentence in enumerate(['一个人']):
+        for sentenid, sentence in enumerate(['的']):
             sid = image_id * 5 + sentenid
             sent_item = {}
             # cut words
+            sentence = sentence.replace('\n', '').replace(' ', '').strip()
             text = jieba.cut(sentence.encode('utf-8'), cut_all=False)
             text = [i for i in text]
             if len(text) == 0:

@@ -82,18 +82,23 @@ def train(opt):
     else:
         gamma = opt.gamma
 
-    if opt.caption_model == 'c2ftopdown':
+    if opt.caption_model == 'c2ftopdown' or opt.caption_model == 'c2fada':
         crit = utils.c2fLanguageModelCriterion(gamma)
     else:
         crit = utils.LanguageModelCriterion(gamma)
     rl_crit = utils.RewardCriterion()
 
     optimizer = optim.Adam(model.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay)
-    # optimizer = optim.Adamax(model.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay)
 
     # Load the optimizer
     if vars(opt).get('start_from', None) is not None and os.path.isfile(os.path.join(opt.start_from, "optimizer.pth")):
         optimizer.load_state_dict(torch.load(os.path.join(opt.start_from, 'optimizer.pth')))
+        # # eval model
+        # eval_kwargs = {'split': 'val', 'verbose': True,
+        #                'dataset': opt.input_json}
+        # eval_kwargs.update(vars(opt))
+        # _, _, lang_stats = eval_utils.eval_split(model, crit, loader, eval_kwargs)
+        # print('before train: ', lang_stats)
 
     while True:
         if update_lr_flag:
@@ -119,6 +124,8 @@ def train(opt):
                 sc_flag = False
 
             update_lr_flag = False
+            alpha = 0.9 ** max(0., (epoch - 33.))
+            # alpha = 1.
 
         start = time.time()
         # Load data from train split (0)
@@ -137,18 +144,18 @@ def train(opt):
         if not sc_flag:
             loss = crit(model(fc_feats, att_feats, labels), labels[:, 1:], masks[:, 1:])
         else:
-            if opt.caption_model == 'c2ftopdown':
-                gen_result, sample_logprobs, gen_result_fine, sample_logprobs_fine, gen_result_coarse, sample_logprobs_coarse = model.sample(
+            if opt.caption_model == 'c2ftopdown' or opt.caption_model == 'c2fada':
+                gen_result, sample_logprobs, gen_result_fine, sample_logprobs_fine = model.sample(
                     fc_feats, att_feats, {'sample_max': 0, 'temperature': opt.temperature})
 
-                reward, reward_fine, reward_coarse = c2f_get_self_critical_reward(
-                    model, fc_feats, att_feats, data, gen_result, gen_result_fine, gen_result_coarse, only_cider=opt.only_cider)
-                loss = rl_crit(sample_logprobs, gen_result, Variable(
+                reward, reward_fine = c2f_get_self_critical_reward(
+                    model, fc_feats, att_feats, data, gen_result, gen_result_fine, alpha, only_cider=opt.only_cider)
+                loss = rl_crit(sample_logprobs[0], gen_result, Variable(
                     torch.from_numpy(reward).float().cuda(), requires_grad=False))
-                loss += rl_crit(sample_logprobs_fine, gen_result_fine, Variable(
+                loss += rl_crit(sample_logprobs_fine[0], gen_result_fine, Variable(
                     torch.from_numpy(reward_fine).float().cuda(), requires_grad=False))
-                loss += rl_crit(sample_logprobs_coarse, gen_result_coarse, Variable(
-                    torch.from_numpy(reward_coarse).float().cuda(), requires_grad=False))
+
+                # loss += 5e-3 * crit([sample_logprobs_fine[1], sample_logprobs[1]], labels[:, 1:], masks[:, 1:])
             else:
                 gen_result, sample_logprobs = model.sample(
                     fc_feats, att_feats, {'sample_max': 0, 'temperature': opt.temperature})
@@ -167,8 +174,8 @@ def train(opt):
                 print("iter {} (epoch {}), train_loss = {:.3f}, time/batch = {:.3f}"
                       .format(iteration, epoch, train_loss, end - start))
             else:
-                print("iter {} (epoch {}), avg_reward = {:.3f}, time/batch = {:.3f}"
-                      .format(iteration, epoch, np.mean(reward[:, 0]), end - start))
+                print("iter {} (epoch {}), train_loss = {:.3f}, avg_reward = {:.3f}, time/batch = {:.3f}"
+                      .format(iteration, epoch, train_loss, np.mean(reward[:, 0]), end - start))
 
         # Update the iteration and epoch
         iteration += 1
@@ -203,7 +210,7 @@ def train(opt):
                            'dataset': opt.input_json}
             eval_kwargs.update(vars(opt))
             val_loss, predictions, lang_stats = eval_utils.eval_split(model, crit, loader, eval_kwargs, model_id=model_id)
-            if opt.caption_model == 'c2ftopdown':
+            if opt.caption_model == 'c2ftopdown' or opt.caption_model == 'c2fada':
                 lang_stats, lang_stats_fine = lang_stats
             # Write validation result into summary
             if tf is not None:
@@ -212,7 +219,6 @@ def train(opt):
                     add_summary_value(tf_summary_writer, k, v, iteration)
                 tf_summary_writer.flush()
             val_result_history[iteration] = {'loss': val_loss, 'lang_stats': lang_stats, 'predictions': predictions}
-
 
             with open(os.path.join(opt.checkpoint_path, 'val.RandB.scores.txt'), 'a+') as f:
                 f.write('\n')
@@ -238,7 +244,7 @@ def train(opt):
                                         5. * lang_stats['ROUGE_L'] + 10. * lang_stats['METEOR']))
                 f.write('\n\n')
 
-            if opt.caption_model == 'c2ftopdown':
+            if opt.caption_model == 'c2ftopdown' or opt.caption_model == 'c2fada':
                 with open(os.path.join(opt.checkpoint_path, 'val.RandB.scores_fine.txt'), 'a+') as f:
                     f.write('\n')
                     f.write("Model {}:".format(model_id))

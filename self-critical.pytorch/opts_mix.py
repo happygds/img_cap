@@ -8,11 +8,11 @@ def parse_opt():
                         help='path to the json file containing additional info and vocab')
     parser.add_argument('--input_fc_dir', type=str, default='data/cocotalk_fc',
                         help='path to the directory containing the preprocessed fc feats')
-    parser.add_argument('--input_att_dir', type=str, default='data/aitalk',
+    parser.add_argument('--input_att_dir', type=str, default='data/aitalk64',
                         help='path to the directory containing the preprocessed att feats')
     parser.add_argument('--input_label_h5', type=str, default='data/aitalk_label.h5',
                         help='path to the h5file containing the preprocessed dataset')
-    parser.add_argument('--start_from', type=str, default='save/c2f_coarse',
+    parser.add_argument('--start_from', type=str, default=None,
                         help="""continue training from saved model at this path. Path must contain files saved by previous training process:
                         'infos.pkl'         : configuration;
                         'checkpoint'        : paths to model file(s) (created by tf).
@@ -43,7 +43,7 @@ def parse_opt():
     # Optimization: General
     parser.add_argument('--max_epochs', type=int, default=-1,
                         help='number of epochs')
-    parser.add_argument('--batch_size', type=int, default=16,
+    parser.add_argument('--batch_size', type=int, default=24,
                         help='minibatch size')
     parser.add_argument('--grad_clip', type=float, default=0.1,  # 5.,
                         help='clip gradients at this value')
@@ -58,10 +58,10 @@ def parse_opt():
 
     # Optimization: for the Language Model
     parser.add_argument('--optim', type=str, default='adam',
-                        help='what update to use? rmsprop|sgd|sgdmom|adagrad|adam|adamax')
+                        help='what update to use? rmsprop|sgd|sgdmom|adagrad|adam')
     parser.add_argument('--learning_rate', type=float, default=5e-4,
                         help='learning rate')
-    parser.add_argument('--learning_rate_decay_start', type=int, default=2,
+    parser.add_argument('--learning_rate_decay_start', type=int, default=3,
                         help='at what iteration to start decaying learning rate? (-1 = dont) (in epoch)')
     parser.add_argument('--learning_rate_decay_every', type=int, default=3,
                         help='every how many iterations thereafter to drop LR?(in epoch)')
@@ -78,9 +78,9 @@ def parse_opt():
 
     parser.add_argument('--scheduled_sampling_start', type=int, default=0,
                         help='at what iteration to start decay gt probability')
-    parser.add_argument('--scheduled_sampling_increase_every', type=int, default=4,
+    parser.add_argument('--scheduled_sampling_increase_every', type=int, default=3,
                         help='every how many iterations thereafter to gt probability (in epochs)')
-    parser.add_argument('--scheduled_sampling_increase_prob', type=float, default=0.05,
+    parser.add_argument('--scheduled_sampling_increase_prob', type=float, default=0.03,
                         help='How much to update the prob')
     parser.add_argument('--scheduled_sampling_max_prob', type=float, default=0.25,
                         help='Maximum scheduled sampling prob.')
@@ -97,9 +97,9 @@ def parse_opt():
     # Evaluation/Checkpointing
     parser.add_argument('--val_images_use', type=int, default=-1,
                         help='how many images to use when periodically evaluating the validation loss? (-1 = all)')
-    parser.add_argument('--save_checkpoint_every', type=int, default=10000,
+    parser.add_argument('--save_checkpoint_every', type=int, default=7000,
                         help='how often to save a model checkpoint (in iterations)?')
-    parser.add_argument('--checkpoint_path', type=str, default='save/c2f_coarse',
+    parser.add_argument('--checkpoint_path', type=str, default='save/c2f_att64_mix',
                         help='directory to store checkpointed models')
     parser.add_argument('--language_eval', type=int, default=1,
                         help='Evaluate language as well (1 = yes, 0 = no)? BLEU/CIDEr/METEOR/ROUGE_L? requires coco-caption code from Github.')
@@ -109,7 +109,7 @@ def parse_opt():
                         help='Do we load previous best score when resuming training.')
 
     # misc
-    parser.add_argument('--id', type=str, default='13',
+    parser.add_argument('--id', type=str, default='',
                         help='an id identifying this run/job. used in cross-val and appended when writing progress files')
     parser.add_argument('--train_only', type=int, default=1,
                         help='if true then use 80k, else use 110k')

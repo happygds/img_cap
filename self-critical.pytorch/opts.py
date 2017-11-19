@@ -8,7 +8,7 @@ def parse_opt():
                         help='path to the json file containing additional info and vocab')
     parser.add_argument('--input_fc_dir', type=str, default='data/cocotalk_fc',
                         help='path to the directory containing the preprocessed fc feats')
-    parser.add_argument('--input_att_dir', type=str, default='data/aitalk',
+    parser.add_argument('--input_att_dir', type=str, default='../self-critical.pytorch/data/aitalk64',
                         help='path to the directory containing the preprocessed att feats')
     parser.add_argument('--input_label_h5', type=str, default='data/aitalk_label.h5',
                         help='path to the h5file containing the preprocessed dataset')
@@ -58,14 +58,16 @@ def parse_opt():
 
     # Optimization: for the Language Model
     parser.add_argument('--optim', type=str, default='adam',
-                        help='what update to use? rmsprop|sgd|sgdmom|adagrad|adam|adamax')
+                        help='what update to use? rmsprop|sgd|sgdmom|adagrad|adam')
     parser.add_argument('--learning_rate', type=float, default=5e-4,
                         help='learning rate')
-    parser.add_argument('--learning_rate_decay_start', type=int, default=2,
+    parser.add_argument('--min_learning_rate', type=float, default=4e-5,
+                        help='learning rate')
+    parser.add_argument('--learning_rate_decay_start', type=int, default=0,
                         help='at what iteration to start decaying learning rate? (-1 = dont) (in epoch)')
-    parser.add_argument('--learning_rate_decay_every', type=int, default=3,
+    parser.add_argument('--learning_rate_decay_every', type=int, default=2,
                         help='every how many iterations thereafter to drop LR?(in epoch)')
-    parser.add_argument('--learning_rate_decay_rate', type=float, default=0.7,
+    parser.add_argument('--learning_rate_decay_rate', type=float, default=0.8,
                         help='every how many iterations thereafter to drop LR?(in epoch)')
     parser.add_argument('--optim_alpha', type=float, default=0.9,
                         help='alpha for adam')
@@ -78,7 +80,7 @@ def parse_opt():
 
     parser.add_argument('--scheduled_sampling_start', type=int, default=0,
                         help='at what iteration to start decay gt probability')
-    parser.add_argument('--scheduled_sampling_increase_every', type=int, default=4,
+    parser.add_argument('--scheduled_sampling_increase_every', type=int, default=5,
                         help='every how many iterations thereafter to gt probability (in epochs)')
     parser.add_argument('--scheduled_sampling_increase_prob', type=float, default=0.05,
                         help='How much to update the prob')
@@ -99,7 +101,7 @@ def parse_opt():
                         help='how many images to use when periodically evaluating the validation loss? (-1 = all)')
     parser.add_argument('--save_checkpoint_every', type=int, default=10000,
                         help='how often to save a model checkpoint (in iterations)?')
-    parser.add_argument('--checkpoint_path', type=str, default='save/c2f_coarse_cell',
+    parser.add_argument('--checkpoint_path', type=str, default='save/c2f_glove',
                         help='directory to store checkpointed models')
     parser.add_argument('--language_eval', type=int, default=1,
                         help='Evaluate language as well (1 = yes, 0 = no)? BLEU/CIDEr/METEOR/ROUGE_L? requires coco-caption code from Github.')
