@@ -65,8 +65,8 @@ def evaluate_captions_mix(gts, res, tokenize=False):
             final_scores[method] = np.asarray(scores)
             assert len(scores) == len(res)
     return final_scores['CIDEr'] + 1.8 * final_scores['ROUGE_L'] \
-        + 1.5 * final_scores['Bleu_4'] + 1.4 * final_scores['Bleu_3'] + \
-        0.7 * final_scores['Bleu_2'] + 0.7 * final_scores['Bleu_1']
+        + 1.3 * final_scores['Bleu_4'] + 1.2 * final_scores['Bleu_3'] + \
+        0.6 * final_scores['Bleu_2'] + 0.6 * final_scores['Bleu_1']
     # return final_scores['METEOR']
 
 
@@ -78,7 +78,7 @@ def array_to_str(arr, gts=False):
         if arr[i] == 0:
             break
         # out += str(arr[i]) + ' '
-        out += itow[str(arr[i])] + ' '
+        out += itow[str(arr[i])] + ' '  # for METEOR metric
         out_jieba += itow[str(arr[i])]
 
     if gts:

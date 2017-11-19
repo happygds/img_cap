@@ -106,7 +106,7 @@ def train(opt):
             if epoch > opt.learning_rate_decay_start and opt.learning_rate_decay_start >= 0:
                 frac = (epoch - opt.learning_rate_decay_start) // opt.learning_rate_decay_every
                 decay_factor = opt.learning_rate_decay_rate ** frac
-                opt.current_lr = opt.learning_rate * decay_factor
+                opt.current_lr = max(opt.learning_rate * decay_factor, opt.min_learning_rate)
                 utils.set_lr(optimizer, opt.current_lr)  # set the decayed rate
             else:
                 opt.current_lr = opt.learning_rate
@@ -124,7 +124,7 @@ def train(opt):
                 sc_flag = False
 
             update_lr_flag = False
-            alpha = 0.9 ** max(0., (epoch - 33.))
+            alpha = max(0.9 ** max(0., (epoch - 21.)), 0.5)
             # alpha = 1.
 
         start = time.time()
