@@ -137,9 +137,9 @@ def eval_split(model, crit, loader, eval_kwargs={}, model_id=None):
         fc_feats, att_feats = tmp
         # forward the model to also get generated samples for each image
         if caption_model == 'c2ftopdown':
-            seq, _, seq_fine, _ = model.sample(fc_feats, att_feats, eval_kwargs)
+            seq, _, seq_fine, _, _, _ = model.sample(fc_feats, att_feats, eval_kwargs)
         else:
-            seq, _ = model.sample(fc_feats, att_feats, eval_kwargs)
+            seq, _, _ = model.sample(fc_feats, att_feats, eval_kwargs)
 
         # set_trace()
         sents = utils.decode_sequence(loader.get_vocab(), seq)
